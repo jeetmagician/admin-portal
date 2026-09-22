@@ -3872,7 +3872,21 @@ document.addEventListener('keydown',e=>{
   }
 });
 
-seed(); restoreDemo(); tick(); render();
+// The Namonamaha admin portal manages this portal's primary customer care
+// login from its own "Customer care login" screen, sharing it via this
+// localStorage key. Apply it to the first active care account on startup so
+// a password changed in the admin portal works here on next load.
+function syncSharedCareLogin(){
+  try{
+    const shared=JSON.parse(localStorage.getItem('nm_shared_care_login')||'null');
+    if(shared && shared.id && shared.password && CARE_USERS[0]){
+      CARE_USERS[0].loginId=shared.id;
+      CARE_USERS[0].password=shared.password;
+    }
+  }catch(e){}
+}
+
+seed(); restoreDemo(); syncSharedCareLogin(); tick(); render();
 
 </script>
 </body>
