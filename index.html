@@ -720,9 +720,8 @@ function agentCard(a){
    '</div>'+
    '<div class="row" style="margin-top:12px">'+
     '<button class="btn btn-sm" data-act="open-modal" data-v="editBank" data-id="'+esc(a.id)+'">Edit bank details</button>'+
-    '<button class="btn btn-sm btn-ok" data-act="pay-agent" data-v="'+esc(a.id)+'" '+(pending<=0?'disabled':'')+
-     ' title="Marks the pending amount as paid here in the ledger and logs it in Pay history. Does not move real money.">'+
-     'Mark as paid'+(pending>0?' — '+INR(pending):'')+'</button>'+
+    '<button class="btn btn-sm btn-ok" data-act="open-modal" data-v="payAgent" data-id="'+esc(a.id)+'"'+
+     ' title="Choose an amount and mark it as paid — logged in Pay history. Does not move real money.">Mark as paid</button>'+
     '<button class="btn btn-sm" data-act="send-agent" data-v="'+esc(a.id)+'" title="Sends the agent a WhatsApp message letting them know they\'ve been paid. Does not mark anything as paid.">Notify agent (WhatsApp)</button>'+
     '<button class="btn btn-sm" data-act="open-modal" data-v="payHistory" data-id="'+esc(a.id)+'">Pay history'+((a.payments||[]).length?' ('+a.payments.length+')':'')+'</button>'+
    '</div>'+
@@ -772,7 +771,7 @@ function adsScreen(){
 function modalHost(){
   const m=S.modal;
   const titles={addAgent:'Add agent',addPandit:'Add pandit',editBank:'Edit bank details',addTemple:'Add temple',addAd:'Add advertisement',
-    agentCreds:'Agent login created',panditCreds:'Pandit login created',showCreds:'Login details',payHistory:'Pay history'};
+    agentCreds:'Agent login created',panditCreds:'Pandit login created',showCreds:'Login details',payHistory:'Pay history',payAgent:'Mark as paid'};
   return '<div class="modal" role="dialog" aria-modal="true"><div class="modal-backdrop" data-act="close-modal"></div>'+
    '<section class="modal-panel"><div class="modal-top"><strong>'+esc(titles[m.type]||'')+'</strong>'+
    '<button class="btn btn-sm" data-act="close-modal">✕ Close</button></div>'+
@@ -802,6 +801,19 @@ function modalBody(){
      '<div class="fld"><label class="f" for="m-acc">Account number</label><input class="inp" id="m-acc" value="'+esc(a.bank.accNo)+'"></div>'+
      '<div class="fld"><label class="f" for="m-ifsc">IFSC code</label><input class="inp" id="m-ifsc" value="'+esc(a.bank.ifsc)+'"></div>'+
      '<button class="btn btn-pri btn-wide" data-act="submit-edit-bank" data-v="'+esc(a.id)+'">Save bank details</button>';
+  }
+  if(m.type==='payAgent'){
+    const a=agent(m.id);
+    const earned=agentEarned(a.id);
+    const pending=Math.max(0, earned-a.paid);
+    return '<p class="sub" style="margin:0 0 12px">'+esc(a.name)+' · <span class="mono">'+esc(a.id)+'</span></p>'+
+     '<dl class="kv"><dt>Earned so far</dt><dd class="mono">'+INR(earned)+'</dd></dl>'+
+     '<dl class="kv"><dt>Already paid</dt><dd class="mono">'+INR(a.paid)+'</dd></dl>'+
+     '<dl class="kv"><dt>Pending</dt><dd class="mono">'+INR(pending)+'</dd></dl>'+
+     '<div class="fld" style="margin-top:14px"><label class="f" for="m-payamt">Amount to pay</label>'+
+     '<input class="inp" id="m-payamt" type="number" min="1" step="1" placeholder="e.g. '+(pending>0?pending:5000)+'" value="'+(pending>0?pending:'')+'"></div>'+
+     '<p class="sub" style="margin:0 0 14px;font-size:12px">Enter any amount — the full pending balance, a partial payment, or an advance. It\'s added to Paid and logged in Pay history.</p>'+
+     '<button class="btn btn-pri btn-wide" data-act="submit-pay-agent" data-v="'+esc(a.id)+'">Mark as paid</button>';
   }
   if(m.type==='payHistory'){
     const a=agent(m.id);
@@ -941,15 +953,15 @@ document.addEventListener('click', e=>{
     saveStore(); S.modal=null; toast('Bank details saved.');
     return render();
   }
-  if(act==='pay-agent'){
+  if(act==='submit-pay-agent'){
     const a=agent(v);
-    const earned=agentEarned(a.id);
-    const pending=Math.max(0, earned-a.paid);
-    if(pending<=0) return;
-    a.paid+=pending;
-    (a.payments=a.payments||[]).push({amount:pending, at:new Date().toISOString()});
+    const amount=Math.round(Number((document.getElementById('m-payamt')||{}).value));
+    if(!amount || amount<=0) return toast('Enter an amount to pay.');
+    a.paid+=amount;
+    (a.payments=a.payments||[]).push({amount, at:new Date().toISOString()});
     saveStore();
-    toast('Marked '+INR(pending)+' as paid to '+a.name+' (simulated).');
+    S.modal=null;
+    toast('Marked '+INR(amount)+' as paid to '+a.name+' (simulated).');
     return render();
   }
   if(act==='send-agent'){
