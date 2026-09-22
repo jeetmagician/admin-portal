@@ -644,7 +644,6 @@ function poojaScreen(){
   const first=new Date(y,m,1);
   const startDow=first.getDay();
   const daysInMonth=new Date(y,m+1,0).getDate();
-  const monthLabel=first.toLocaleDateString('en-IN',{month:'long',year:'numeric'});
   const byDate={};
   DB.poojas.forEach(pj=>{ (byDate[pj.date]=byDate[pj.date]||[]).push(pj); });
 
@@ -660,12 +659,24 @@ function poojaScreen(){
       '</button>';
   }
 
+  const nowY=new Date().getFullYear();
+  const yMin=Math.min(nowY,y)-3, yMax=Math.max(nowY,y)+5;
+  const years=[]; for(let yy=yMin; yy<=yMax; yy++) years.push(yy);
+  const monthOpts=Array.from({length:12},(_,i)=>'<option value="'+i+'"'+(i===m?' selected':'')+'>'+new Date(2000,i,1).toLocaleDateString('en-IN',{month:'long'})+'</option>').join('');
+  const yearOpts=years.map(yy=>'<option value="'+yy+'"'+(yy===y?' selected':'')+'>'+yy+'</option>').join('');
+
   return '<div class="eyebrow">Daily pooja</div><h1 class="h-page">Date-wise pooja details</h1>'+
-   '<p class="sub" style="margin:6px 0 14px">Click any date to see that day\'s bookings.</p>'+
-   '<div class="row" style="justify-content:space-between;margin-bottom:12px">'+
-    '<button class="btn btn-sm" data-act="cal-prev">← Previous</button>'+
-    '<strong style="color:#F4EFE8">'+esc(monthLabel)+'</strong>'+
-    '<button class="btn btn-sm" data-act="cal-next">Next →</button>'+
+   '<p class="sub" style="margin:6px 0 14px">Click any date to see that day\'s bookings, or jump straight to a month and year.</p>'+
+   '<div class="row" style="justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:10px">'+
+    '<div class="row" style="gap:8px">'+
+     '<button class="btn btn-sm" data-act="cal-prev">← Previous</button>'+
+     '<button class="btn btn-sm" data-act="cal-today">Today</button>'+
+     '<button class="btn btn-sm" data-act="cal-next">Next →</button>'+
+    '</div>'+
+    '<div class="row" style="gap:8px">'+
+     '<select class="inp" id="cal-month-sel" data-changeact="cal-set-month" style="width:auto">'+monthOpts+'</select>'+
+     '<select class="inp" id="cal-year-sel" data-changeact="cal-set-year" style="width:auto">'+yearOpts+'</select>'+
+    '</div>'+
    '</div>'+
    '<div class="cal">'+
     ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>'<div class="cal-dow">'+d+'</div>').join('')+
@@ -910,6 +921,7 @@ document.addEventListener('click', e=>{
 
   if(act==='cal-prev'){ S.calMonth--; if(S.calMonth<0){S.calMonth=11;S.calYear--;} return render(); }
   if(act==='cal-next'){ S.calMonth++; if(S.calMonth>11){S.calMonth=0;S.calYear++;} return render(); }
+  if(act==='cal-today'){ const n=new Date(); S.calYear=n.getFullYear(); S.calMonth=n.getMonth(); return render(); }
   if(act==='cal-open'){ S.calSelected=v; return render(); }
   if(act==='cal-back'){ S.calSelected=null; return render(); }
 
@@ -1021,6 +1033,14 @@ document.addEventListener('click', e=>{
     toast('Customer care login updated.');
     return render();
   }
+});
+
+document.addEventListener('change', e=>{
+  const el=e.target.closest('[data-changeact]');
+  if(!el) return;
+  const act=el.getAttribute('data-changeact');
+  if(act==='cal-set-month'){ S.calMonth=Number(el.value); return render(); }
+  if(act==='cal-set-year'){ S.calYear=Number(el.value); return render(); }
 });
 
 render();
