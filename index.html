@@ -284,6 +284,7 @@ const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&
 const uid = p => p+'-'+Math.random().toString(36).slice(2,7).toUpperCase();
 const todayISO = () => new Date().toISOString().slice(0,10);
 const fmtDate = iso => new Date(iso+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+const fmtDateTime = iso => new Date(iso).toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true});
 
 /* ---------------- admin login (prototype) ---------------- */
 const ADMIN_CREDENTIALS = {id:'admin', password:'Namonamaha@2026'};
@@ -334,11 +335,13 @@ const SEED_TEMPLES = [
 
 const SEED_AGENTS = [
   {id:'AG-4821', password:'rame9864', name:'Ramesh Kalita', mobile:'9864012345', whatsapp:'9864012345',
-   bank:{accNo:'304501298471', ifsc:'SBIN0001234', bankName:'State Bank of India'}, paid:8500, createdAt:'2026-06-02'},
+   bank:{accNo:'304501298471', ifsc:'SBIN0001234', bankName:'State Bank of India'}, paid:8500, createdAt:'2026-06-02',
+   payments:[{amount:5000, at:'2026-07-05T11:20:00.000Z'},{amount:3500, at:'2026-08-12T09:45:00.000Z'}]},
   {id:'AG-7734', password:'sure9884', name:'Suresh Iyer', mobile:'9884023456', whatsapp:'9884023456',
-   bank:{accNo:'', ifsc:'', bankName:''}, paid:0, createdAt:'2026-07-14'},
+   bank:{accNo:'', ifsc:'', bankName:''}, paid:0, createdAt:'2026-07-14', payments:[]},
   {id:'AG-2290', password:'ompr9415', name:'Om Prakash Sharma', mobile:'9415034567', whatsapp:'9415098765',
-   bank:{accNo:'506102345678', ifsc:'HDFC0002211', bankName:'HDFC Bank'}, paid:12000, createdAt:'2026-05-20'}
+   bank:{accNo:'506102345678', ifsc:'HDFC0002211', bankName:'HDFC Bank'}, paid:12000, createdAt:'2026-05-20',
+   payments:[{amount:12000, at:'2026-08-01T14:10:00.000Z'}]}
 ];
 
 const SEED_PANDITS = [
@@ -683,6 +686,7 @@ function agentCard(a){
     '<button class="btn btn-sm" data-act="open-modal" data-v="editBank" data-id="'+esc(a.id)+'">Edit bank details</button>'+
     '<button class="btn btn-sm btn-ok" data-act="pay-agent" data-v="'+esc(a.id)+'" '+(pending<=0?'disabled':'')+'>Pay '+(pending>0?INR(pending):'')+'</button>'+
     '<button class="btn btn-sm" data-act="send-agent" data-v="'+esc(a.id)+'">Send</button>'+
+    '<button class="btn btn-sm" data-act="open-modal" data-v="payHistory" data-id="'+esc(a.id)+'">Pay history'+((a.payments||[]).length?' ('+a.payments.length+')':'')+'</button>'+
    '</div>'+
   '</div>';
 }
@@ -728,7 +732,7 @@ function adsScreen(){
 function modalHost(){
   const m=S.modal;
   const titles={addAgent:'Add agent',addPandit:'Add pandit',editBank:'Edit bank details',addTemple:'Add temple',addAd:'Add advertisement',
-    agentCreds:'Agent login created',panditCreds:'Pandit login created',showCreds:'Login details'};
+    agentCreds:'Agent login created',panditCreds:'Pandit login created',showCreds:'Login details',payHistory:'Pay history'};
   return '<div class="modal" role="dialog" aria-modal="true"><div class="modal-backdrop" data-act="close-modal"></div>'+
    '<section class="modal-panel"><div class="modal-top"><strong>'+esc(titles[m.type]||'')+'</strong>'+
    '<button class="btn btn-sm" data-act="close-modal">✕ Close</button></div>'+
@@ -758,6 +762,15 @@ function modalBody(){
      '<div class="fld"><label class="f" for="m-acc">Account number</label><input class="inp" id="m-acc" value="'+esc(a.bank.accNo)+'"></div>'+
      '<div class="fld"><label class="f" for="m-ifsc">IFSC code</label><input class="inp" id="m-ifsc" value="'+esc(a.bank.ifsc)+'"></div>'+
      '<button class="btn btn-pri btn-wide" data-act="submit-edit-bank" data-v="'+esc(a.id)+'">Save bank details</button>';
+  }
+  if(m.type==='payHistory'){
+    const a=agent(m.id);
+    const rows=(a.payments||[]).slice().sort((x,y)=>new Date(y.at)-new Date(x.at));
+    return '<p class="sub" style="margin:0 0 12px">'+esc(a.name)+' · <span class="mono">'+esc(a.id)+'</span></p>'+
+     (rows.length?'<table class="t"><thead><tr><th>Date &amp; time</th><th>Amount</th></tr></thead><tbody>'+
+       rows.map(p=>'<tr><td>'+esc(fmtDateTime(p.at))+'</td><td class="mono">'+INR(p.amount)+'</td></tr>').join('')+
+      '</tbody></table>'
+     :'<div class="empty">No payments recorded yet.</div>');
   }
   if(m.type==='agentCreds'||m.type==='panditCreds'||m.type==='showCreds'){
     const rec = m.type==='panditCreds' ? m.rec : (m.type==='showCreds' ? (m.kind==='pandit'?pandit(m.id):agent(m.id)) : m.rec);
@@ -827,7 +840,7 @@ document.addEventListener('click', e=>{
     const mobile=(document.getElementById('m-mobile')||{}).value.trim();
     if(!name||!mobile) return toast('Enter a name and mobile number.');
     const rec={id:genId('AG', DB.agents.map(a=>a.id)), password:genPasswordFromNameMobile(name, mobile), name, mobile, whatsapp:mobile,
-      bank:{accNo:'',ifsc:'',bankName:''}, paid:0, createdAt:todayISO()};
+      bank:{accNo:'',ifsc:'',bankName:''}, paid:0, createdAt:todayISO(), payments:[]};
     DB.agents.push(rec); saveStore();
     S.modal={type:'agentCreds', rec};
     return render();
@@ -893,7 +906,9 @@ document.addEventListener('click', e=>{
     const earned=agentEarned(a.id);
     const pending=Math.max(0, earned-a.paid);
     if(pending<=0) return;
-    a.paid+=pending; saveStore();
+    a.paid+=pending;
+    (a.payments=a.payments||[]).push({amount:pending, at:new Date().toISOString()});
+    saveStore();
     toast('Marked '+INR(pending)+' as paid to '+a.name+' (simulated).');
     return render();
   }
