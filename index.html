@@ -688,17 +688,18 @@ function poojaDayScreen(iso){
   const total=list.reduce((s,pj)=>s+pj.amount,0);
   return '<button class="btn btn-sm" style="margin-bottom:12px" data-act="cal-back">← Back to calendar</button>'+
    '<div class="eyebrow">'+esc(fmtDate(iso))+'</div><h1 class="h-page">'+list.length+' pooja'+(list.length===1?'':'s')+' · '+INR(total)+'</h1>'+
-   (list.length?'<div class="scroll-x" style="margin-top:14px"><table class="t"><thead><tr>'+
+   (list.length?'<div class="card" style="margin-top:14px"><div class="scroll-x"><table class="t"><thead><tr>'+
      '<th>Temple</th><th>Pooja</th><th>Devotee</th><th>Agent</th><th>Pandit</th><th>Amount</th><th>Status</th></tr></thead><tbody>'+
      list.map(pj=>{
        const t=temple(pj.templeId), ag=agent(pj.agentId), pd=pandit(pj.panditId);
        const done=isCompleted(pj);
+       const person=p=>p?esc(p.name)+'<div class="sub mono" style="font-size:11px;margin-top:2px">'+esc(p.id)+'</div>':'—';
        return '<tr><td>'+esc(t?t.name:'—')+'</td><td>'+esc(pj.puja)+'</td><td>'+esc(pj.devotee)+'</td>'+
-        '<td>'+esc(ag?ag.name:'—')+'</td><td>'+esc(pd?pd.name:'—')+'</td>'+
+        '<td>'+person(ag)+'</td><td>'+person(pd)+'</td>'+
         '<td class="mono">'+INR(pj.amount)+'</td>'+
         '<td>'+(done?'<span class="pill p-ok">Completed</span>':'<span class="pill p-info">Upcoming</span>')+'</td></tr>';
      }).join('')+
-    '</tbody></table></div>':'<div class="empty">No poojas booked on this date.</div>');
+    '</tbody></table></div></div>':'<div class="card" style="margin-top:14px"><div class="empty">No poojas booked on this date.</div></div>');
 }
 
 /* ---------------- TEMPLES ---------------- */
