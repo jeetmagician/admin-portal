@@ -50,30 +50,41 @@
   --shadow:0 1px 2px rgba(0,0,0,.4),0 4px 14px rgba(0,0,0,.3);
 }
 *{box-sizing:border-box}
-body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+body{margin:0;color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;
+  background-image:linear-gradient(180deg,rgba(8,6,15,.84),rgba(16,10,20,.88) 60%,rgba(8,6,15,.90)),url('wallpaper.jpg');
+  background-position:center,center 22%;background-size:cover,cover;background-repeat:no-repeat,no-repeat;
+  background-attachment:fixed,fixed}
+@media (max-width:560px){body{background-attachment:scroll,scroll}}
 h1,h2,h3,h4{font-family:var(--disp);margin:0;text-wrap:balance;letter-spacing:-.01em}
 button,input,select,textarea{font:inherit;color:inherit}
 a{color:var(--accent)}
 *:focus-visible{outline:2px solid var(--flow);outline-offset:2px}
 
-/* ---------- chrome ---------- */
-.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:40;background:var(--surface);border-bottom:1px solid var(--line)}
+/* ---------- chrome (translucent over the wallpaper) ---------- */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:40;background:rgba(20,16,28,.72);backdrop-filter:blur(8px);border-bottom:1px solid rgba(255,255,255,.09)}
 .top-in{display:flex;align-items:center;gap:12px;padding:10px 16px;flex-wrap:wrap;max-width:1180px;margin:0 auto}
-.brand{display:flex;align-items:center;gap:9px;font-family:var(--disp);font-weight:700;font-size:15px;letter-spacing:-.02em;white-space:nowrap}
+.brand{display:flex;align-items:center;gap:9px;font-family:var(--disp);font-weight:700;font-size:15px;letter-spacing:-.02em;white-space:nowrap;color:#F4EFE8}
 .brand-logo{height:27px;width:auto;display:block}
 .om-mark{font-family:var(--sans);font-weight:600;line-height:1;flex:none;font-size:20px;
   background:linear-gradient(160deg,#F3B267,var(--accent) 55%,#7A1526);-webkit-background-clip:text;background-clip:text;color:transparent}
 .tagpill{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.09em;color:var(--flow);background:var(--flow-soft);border:1px solid var(--flow-line);padding:2px 7px;border-radius:99px;white-space:nowrap}
 .top-sp{flex:1 1 auto}
-.who{font-size:12.5px;color:var(--ink-2);white-space:nowrap}
+.who{font-size:12.5px;color:#C9C2D8;white-space:nowrap}
 
-.nav{position:sticky;top:calc(48px + env(safe-area-inset-top,0px));z-index:39;background:var(--surface);border-bottom:1px solid var(--line);overflow-x:auto;-webkit-overflow-scrolling:touch}
+.nav{position:sticky;top:calc(48px + env(safe-area-inset-top,0px));z-index:39;background:rgba(20,16,28,.60);backdrop-filter:blur(8px);border-bottom:1px solid rgba(255,255,255,.09);overflow-x:auto;-webkit-overflow-scrolling:touch}
 .nav-in{display:flex;gap:2px;padding:0 12px;max-width:1180px;margin:0 auto;min-width:max-content}
-.nav button{background:none;border:none;border-bottom:2px solid transparent;color:var(--ink-2);padding:11px 12px;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:6px}
-.nav button:hover{color:var(--ink)}
+.nav button{background:none;border:none;border-bottom:2px solid transparent;color:#C9C2D8;padding:11px 12px;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:6px}
+.nav button:hover{color:#F4EFE8}
 .nav button[aria-current="true"]{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
 
 .wrap{max-width:1180px;margin:0 auto;padding:20px 16px 90px}
+/* page headers sit directly on the wallpaper (not inside a white card), so they
+   need their own light colors — everything inside .card/.stat keeps the normal
+   dark-on-white text untouched. */
+.wrap > .eyebrow{color:#B8AFC4}
+.wrap > .h-page{color:#F4EFE8}
+.wrap > .sub, .wrap > .row > .sub{color:#D8D2E0}
+.wrap > .cal > .cal-dow{color:#9C93A8}
 
 /* ---------- primitives (shared with the customer-care portal) ---------- */
 .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px}
@@ -595,7 +606,7 @@ function poojaScreen(){
    '<p class="sub" style="margin:6px 0 14px">Click any date to see that day\'s bookings.</p>'+
    '<div class="row" style="justify-content:space-between;margin-bottom:12px">'+
     '<button class="btn btn-sm" data-act="cal-prev">← Previous</button>'+
-    '<strong>'+esc(monthLabel)+'</strong>'+
+    '<strong style="color:#F4EFE8">'+esc(monthLabel)+'</strong>'+
     '<button class="btn btn-sm" data-act="cal-next">Next →</button>'+
    '</div>'+
    '<div class="cal">'+
