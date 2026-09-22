@@ -220,8 +220,8 @@ body.modal-open{overflow:hidden}
 /* ---------- desktop scale-up ---------- */
 @media (min-width:900px){
   body{font-size:15.5px}
-  .wrap{max-width:1320px;padding:32px 32px 110px}
-  .top-in,.nav-in{max-width:1320px}
+  .wrap{max-width:min(94vw,1600px);padding:32px 32px 110px}
+  .top-in,.nav-in{max-width:min(94vw,1600px)}
   .top-in{padding:14px 28px}
   .nav-in{padding:0 28px}
   .brand{font-size:17px;gap:11px}
@@ -262,6 +262,42 @@ body.modal-open{overflow:hidden}
   .cal-cell .amt{font-size:12px}
   .cal-dow{font-size:11px;padding:6px 0}
   .stat{padding:24px}
+}
+
+/* ---------- large desktop / full-screen monitors ---------- */
+@media (min-width:1440px){
+  body{font-size:17px}
+  .wrap{max-width:min(94vw,1900px);padding:40px 40px 120px}
+  .top-in,.nav-in{max-width:min(94vw,1900px)}
+  .top-in{padding:16px 36px}
+  .nav-in{padding:0 36px}
+  .brand{font-size:18px}
+  .brand-logo{height:34px}
+  .who{font-size:14.5px}
+  .nav button{padding:15px 20px;font-size:15.5px}
+  .h-page{font-size:34px}
+  .h-sec{font-size:19px}
+  .eyebrow{font-size:12px}
+  .sub{font-size:16px}
+  .card{padding:26px 28px}
+  .stat{padding:26px 28px}
+  .stat .v{font-size:36px}
+  .stat .d{font-size:14px}
+  .grid{gap:18px}
+  .btn{padding:12px 22px;font-size:16px}
+  .btn-sm{padding:9px 17px;font-size:14.5px}
+  table.t{font-size:15.5px}
+  table.t th{font-size:12px;padding:12px 16px}
+  table.t td{padding:14px 16px}
+  .inp{padding:13px 15px;font-size:16.5px}
+  label.f{font-size:14.5px}
+  .rrow-name{font-size:18px}
+  .rrow-meta{font-size:14.5px}
+  .kv{font-size:15px}
+  .pill{font-size:11.5px}
+  .cal-cell .dn{font-size:15px}
+  .cal-cell .cnt{font-size:12px}
+  .cal-cell .amt{font-size:13px}
 }
 </style>
 </head>
@@ -684,10 +720,14 @@ function agentCard(a){
    '</div>'+
    '<div class="row" style="margin-top:12px">'+
     '<button class="btn btn-sm" data-act="open-modal" data-v="editBank" data-id="'+esc(a.id)+'">Edit bank details</button>'+
-    '<button class="btn btn-sm btn-ok" data-act="pay-agent" data-v="'+esc(a.id)+'" '+(pending<=0?'disabled':'')+'>Pay '+(pending>0?INR(pending):'')+'</button>'+
-    '<button class="btn btn-sm" data-act="send-agent" data-v="'+esc(a.id)+'">Send</button>'+
+    '<button class="btn btn-sm btn-ok" data-act="pay-agent" data-v="'+esc(a.id)+'" '+(pending<=0?'disabled':'')+
+     ' title="Marks the pending amount as paid here in the ledger and logs it in Pay history. Does not move real money.">'+
+     'Mark as paid'+(pending>0?' — '+INR(pending):'')+'</button>'+
+    '<button class="btn btn-sm" data-act="send-agent" data-v="'+esc(a.id)+'" title="Sends the agent a WhatsApp message letting them know they\'ve been paid. Does not mark anything as paid.">Notify agent (WhatsApp)</button>'+
     '<button class="btn btn-sm" data-act="open-modal" data-v="payHistory" data-id="'+esc(a.id)+'">Pay history'+((a.payments||[]).length?' ('+a.payments.length+')':'')+'</button>'+
    '</div>'+
+   '<p class="sub" style="margin:8px 0 0;font-size:12px">'+
+    '<b>Mark as paid</b> updates what\'s owed and logs it below. <b>Notify agent</b> just sends a WhatsApp message — use it after paying them for real.</p>'+
   '</div>';
 }
 
