@@ -406,10 +406,13 @@ function loadCareLogin(){
 function saveCareLogin(v){ try{ localStorage.setItem(CARE_LOGIN_KEY, JSON.stringify(v)); }catch(e){} }
 let CARE_LOGIN = loadCareLogin();
 
-/* ---------------- session ---------------- */
+/* ---------------- session ----------------
+   localStorage (not sessionStorage) so the logged-in state is shared across
+   tabs — the "← Admin portal" link from the CRM opens/returns to this same
+   origin in its own tab, and shouldn't force a fresh login. */
 const SESSION_KEY = 'nm_admin_session';
-function isLoggedIn(){ try{ return sessionStorage.getItem(SESSION_KEY)==='1'; }catch(e){ return false; } }
-function setLoggedIn(v){ try{ v ? sessionStorage.setItem(SESSION_KEY,'1') : sessionStorage.removeItem(SESSION_KEY); }catch(e){} }
+function isLoggedIn(){ try{ return localStorage.getItem(SESSION_KEY)==='1'; }catch(e){ return false; } }
+function setLoggedIn(v){ try{ v ? localStorage.setItem(SESSION_KEY,'1') : localStorage.removeItem(SESSION_KEY); }catch(e){} }
 
 /* ---------------- ui state ---------------- */
 let S = {
