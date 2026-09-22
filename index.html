@@ -211,6 +211,7 @@ body.modal-open{overflow:hidden}
 /* ---------- toast ---------- */
 .toast-wrap{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:90;display:flex;flex-direction:column;gap:8px;align-items:center;width:min(92vw,420px)}
 .toast{background:var(--ink);color:var(--ground);border-radius:var(--r-sm);padding:10px 16px;font-size:13px;box-shadow:0 10px 28px rgba(0,0,0,.25);text-align:center}
+.toast-stop{background:var(--stop);color:#fff}
 :root[data-theme="dark"] .toast,@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .toast{background:var(--surface-3);color:var(--ink)}}
 
 @media (max-width:560px){
@@ -342,6 +343,24 @@ const genPasswordFromNameMobile = (name, mobile) => {
 
 /* ---------------- agent payout rule (prototype) ---------------- */
 const AGENT_COMMISSION = 500; // flat payout per completed pooja handled by the agent
+
+/* ---------------- payout simulation ----------------
+   Stands in for a real payout gateway (e.g. RazorpayX Payouts). A real
+   backend would call the gateway here, hold the payment as "processing",
+   and only mark it paid once a webhook confirms success — a transfer can
+   fail (no bank details, bank downtime, a bad IFSC, a payout limit) and
+   that must be visible, not silently treated as paid. */
+const PAYOUT_FAIL_RATE = 0.2;
+const PAYOUT_FAIL_REASONS = [
+  'Bank server unavailable — try again in a few minutes.',
+  'Payout could not be verified by the bank. Check the account number and IFSC.',
+  'Daily payout limit exceeded for this account.'
+];
+function attemptPayout(a){
+  if(!a.bank || !a.bank.accNo) return {status:'failed', reason:'No bank account on file for this agent. Add bank details first.'};
+  if(Math.random() < PAYOUT_FAIL_RATE) return {status:'failed', reason:PAYOUT_FAIL_REASONS[Math.floor(Math.random()*PAYOUT_FAIL_REASONS.length)]};
+  return {status:'success'};
+}
 
 /* ---------------- advertisement platforms ---------------- */
 const AD_PLATFORMS = {
@@ -535,12 +554,12 @@ function isCompleted(pj){ return pj.date < todayISO(); }
 function agentEarned(agentId){
   return DB.poojas.filter(pj=>pj.agentId===agentId && isCompleted(pj)).length * AGENT_COMMISSION;
 }
-function toast(msg){
+function toast(msg, kind){
   const t=document.getElementById('toasts');
   const el=document.createElement('div');
-  el.className='toast'; el.textContent=msg;
+  el.className='toast'+(kind==='stop'?' toast-stop':''); el.textContent=msg;
   t.appendChild(el);
-  setTimeout(()=>el.remove(), 3200);
+  setTimeout(()=>el.remove(), kind==='stop'?4600:3200);
 }
 
 /* ---------------- OVERVIEW ---------------- */
@@ -701,6 +720,8 @@ function agentCard(a){
   const earned=agentEarned(a.id);
   const pending=Math.max(0, earned-a.paid);
   const hasBank = a.bank && a.bank.accNo;
+  const lastPayment=(a.payments&&a.payments.length)?a.payments.slice().sort((x,y)=>new Date(y.at)-new Date(x.at))[0]:null;
+  const lastFailed=lastPayment&&lastPayment.status==='failed';
   return '<div class="card">'+
    '<div class="row" style="justify-content:space-between;align-items:flex-start">'+
     '<div><div class="rrow-name">'+esc(a.name)+'</div>'+
@@ -718,15 +739,17 @@ function agentCard(a){
      '<dl class="kv" style="border:none"><dt>Paid</dt><dd class="mono">'+INR(a.paid)+'</dd></dl>'+
      '<dl class="kv" style="border:none"><dt>Pending</dt><dd class="mono">'+(pending>0?'<span class="pill p-warn">'+INR(pending)+'</span>':INR(0))+'</dd></dl></div>'+
    '</div>'+
+   (lastFailed?'<div class="warnbox" style="margin-top:12px"><h4>Last payment failed</h4>'+
+     '<p>'+esc(lastPayment.reason||'Reason not recorded.')+' Sent '+esc(fmtDateTime(lastPayment.at))+', for '+INR(lastPayment.amount)+'. Not added to Paid — try again below.</p></div>':'')+
    '<div class="row" style="margin-top:12px">'+
     '<button class="btn btn-sm" data-act="open-modal" data-v="editBank" data-id="'+esc(a.id)+'">Edit bank details</button>'+
     '<button class="btn btn-sm btn-ok" data-act="open-modal" data-v="payAgent" data-id="'+esc(a.id)+'"'+
-     ' title="Choose an amount and mark it as paid — logged in Pay history. Does not move real money.">Mark as paid</button>'+
-    '<button class="btn btn-sm" data-act="send-agent" data-v="'+esc(a.id)+'" title="Sends the agent a WhatsApp message letting them know they\'ve been paid. Does not mark anything as paid.">Notify agent (WhatsApp)</button>'+
+     ' title="Choose an amount and pay the agent — logged in Pay history. Simulated: no real money moves yet.">Pay</button>'+
+    '<button class="btn btn-sm" data-act="send-agent" data-v="'+esc(a.id)+'" title="Sends the agent a WhatsApp message letting them know they\'ve been paid. Does not pay them.">Notify agent (WhatsApp)</button>'+
     '<button class="btn btn-sm" data-act="open-modal" data-v="payHistory" data-id="'+esc(a.id)+'">Pay history'+((a.payments||[]).length?' ('+a.payments.length+')':'')+'</button>'+
    '</div>'+
    '<p class="sub" style="margin:8px 0 0;font-size:12px">'+
-    '<b>Mark as paid</b> updates what\'s owed and logs it below. <b>Notify agent</b> just sends a WhatsApp message — use it after paying them for real.</p>'+
+    '<b>Pay</b> records the payment and updates what\'s owed — a payment can still fail (shown here and in Pay history) and won\'t count until it succeeds. <b>Notify agent</b> just sends a WhatsApp message.</p>'+
   '</div>';
 }
 
@@ -771,7 +794,7 @@ function adsScreen(){
 function modalHost(){
   const m=S.modal;
   const titles={addAgent:'Add agent',addPandit:'Add pandit',editBank:'Edit bank details',addTemple:'Add temple',addAd:'Add advertisement',
-    agentCreds:'Agent login created',panditCreds:'Pandit login created',showCreds:'Login details',payHistory:'Pay history',payAgent:'Mark as paid'};
+    agentCreds:'Agent login created',panditCreds:'Pandit login created',showCreds:'Login details',payHistory:'Pay history',payAgent:'Pay agent'};
   return '<div class="modal" role="dialog" aria-modal="true"><div class="modal-backdrop" data-act="close-modal"></div>'+
    '<section class="modal-panel"><div class="modal-top"><strong>'+esc(titles[m.type]||'')+'</strong>'+
    '<button class="btn btn-sm" data-act="close-modal">✕ Close</button></div>'+
@@ -812,15 +835,21 @@ function modalBody(){
      '<dl class="kv"><dt>Pending</dt><dd class="mono">'+INR(pending)+'</dd></dl>'+
      '<div class="fld" style="margin-top:14px"><label class="f" for="m-payamt">Amount to pay</label>'+
      '<input class="inp" id="m-payamt" type="number" min="1" step="1" placeholder="e.g. '+(pending>0?pending:5000)+'" value="'+(pending>0?pending:'')+'"></div>'+
-     '<p class="sub" style="margin:0 0 14px;font-size:12px">Enter any amount — the full pending balance, a partial payment, or an advance. It\'s added to Paid and logged in Pay history.</p>'+
-     '<button class="btn btn-pri btn-wide" data-act="submit-pay-agent" data-v="'+esc(a.id)+'">Mark as paid</button>';
+     '<p class="sub" style="margin:0 0 14px;font-size:12px">Enter any amount — the full pending balance, a partial payment, or an advance. A payment can fail (no bank details, a simulated gateway decline) — if it does, it won\'t be added to Paid and the reason shows on the agent and in Pay history.</p>'+
+     '<button class="btn btn-pri btn-wide" data-act="submit-pay-agent" data-v="'+esc(a.id)+'">Pay '+esc(a.name)+'</button>';
   }
   if(m.type==='payHistory'){
     const a=agent(m.id);
     const rows=(a.payments||[]).slice().sort((x,y)=>new Date(y.at)-new Date(x.at));
     return '<p class="sub" style="margin:0 0 12px">'+esc(a.name)+' · <span class="mono">'+esc(a.id)+'</span></p>'+
-     (rows.length?'<table class="t"><thead><tr><th>Date &amp; time</th><th>Amount</th></tr></thead><tbody>'+
-       rows.map(p=>'<tr><td>'+esc(fmtDateTime(p.at))+'</td><td class="mono">'+INR(p.amount)+'</td></tr>').join('')+
+     (rows.length?'<table class="t"><thead><tr><th>Date &amp; time</th><th>Amount</th><th>Status</th></tr></thead><tbody>'+
+       rows.map(p=>{
+         const failed=p.status==='failed';
+         return '<tr><td>'+esc(fmtDateTime(p.at))+'</td><td class="mono">'+INR(p.amount)+'</td>'+
+          '<td>'+(failed?'<span class="pill p-stop">Failed</span>':'<span class="pill p-ok">Paid</span>')+
+          (failed&&p.reason?'<div class="sub" style="margin-top:4px;font-size:11.5px">'+esc(p.reason)+'</div>':'')+
+          '</td></tr>';
+       }).join('')+
       '</tbody></table>'
      :'<div class="empty">No payments recorded yet.</div>');
   }
@@ -957,11 +986,16 @@ document.addEventListener('click', e=>{
     const a=agent(v);
     const amount=Math.round(Number((document.getElementById('m-payamt')||{}).value));
     if(!amount || amount<=0) return toast('Enter an amount to pay.');
-    a.paid+=amount;
-    (a.payments=a.payments||[]).push({amount, at:new Date().toISOString()});
+    const result=attemptPayout(a);
+    (a.payments=a.payments||[]).push({amount, at:new Date().toISOString(), status:result.status, reason:result.reason||null});
+    if(result.status==='success') a.paid+=amount;
     saveStore();
     S.modal=null;
-    toast('Marked '+INR(amount)+' as paid to '+a.name+' (simulated).');
+    if(result.status==='success'){
+      toast('Paid '+INR(amount)+' to '+a.name+' (simulated).');
+    }else{
+      toast('Payment of '+INR(amount)+' to '+a.name+' failed — '+result.reason, 'stop');
+    }
     return render();
   }
   if(act==='send-agent'){
