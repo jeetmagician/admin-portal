@@ -4,6 +4,8 @@ A single-file, front-end-only **prototype** of the admin console for Namonamaha,
 
 It's designed to work alongside a companion prototype, the **customer care portal** (the CRM used by care staff, onsite agents, and pandits). That CRM has its own separate repo, [`jeetmagician/customer-care-portal`](https://github.com/jeetmagician/customer-care-portal) — this repo keeps its own copy as `customer-care-portal.html` (see "Keeping the CRM copy in sync" below for why that matters and how to redo it).
 
+**New here? Read [PORTAL_GUIDE.md](PORTAL_GUIDE.md)** — a screen-by-screen walkthrough of everything the portal can do, and how a booking travels from a devotee's first payment to the agent being paid.
+
 ## Running it locally
 
 No build step, no dependencies. Serve the folder with any static file server and open `index.html`:
@@ -61,6 +63,7 @@ As of this sync the CRM has been simplified to **one login page into a single al
 
 | File | What it is |
 |---|---|
+| `PORTAL_GUIDE.md` | End-to-end guide to what the Admin Portal can do. |
 | `index.html` | The Admin Portal — everything described above. |
 | `customer-care-portal.html` | The CRM used by customer care, onsite agents, and pandits to run bookings day to day. |
 | `logo-transparent.png` | Shared NamoNamaha wordmark, used in both apps' top bars and login screens. |
