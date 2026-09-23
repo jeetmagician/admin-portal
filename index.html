@@ -470,9 +470,20 @@ function loadStore(){
     poojas: seedPoojas()
   };
 }
-function saveStore(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(DB)); }catch(e){} }
+function saveStore(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(DB)); }catch(e){ console.error('saveStore failed:', e); } }
 let DB = loadStore();
 if(!DB.poojas || !DB.poojas.length) { DB.poojas = seedPoojas(); saveStore(); }
+// Backfill devotee phone numbers into poojas saved before DEVOTEES carried them.
+(function migratePoojas(){
+  let changed=false;
+  DB.poojas.forEach(pj=>{
+    if(!pj.devoteeMobile){
+      const dv=DEVOTEES.find(d=>d.name===pj.devotee);
+      if(dv){ pj.devoteeMobile=dv.mobile; changed=true; }
+    }
+  });
+  if(changed) saveStore();
+})();
 
 /* ---------------- customer care login (shared with the CRM) ----------------
    customer-care-portal.html reads this same key at startup and applies it to
