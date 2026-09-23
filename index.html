@@ -358,6 +358,18 @@ const genPasswordFromNameMobile = (name, mobile) => {
 /* ---------------- agent payout rule (prototype) ---------------- */
 const AGENT_COMMISSION = 500; // flat payout per completed pooja handled by the agent
 
+/* ---------------- booking types (mirrors the CRM's own in_person/subscription/online modes) ---------------- */
+const BOOKING_TYPES = {
+  in_person:   {label:'Offline puja', pill:'p-mute'},
+  online:      {label:'Online puja', pill:'p-info'},
+  subscription:{label:'Subscription', pill:'p-flow'}
+};
+const BOOKING_MODE_KEYS = Object.keys(BOOKING_TYPES);
+function bookingTypeTag(mode){
+  const t=BOOKING_TYPES[mode];
+  return t ? '<span class="pill '+t.pill+'">'+esc(t.label)+'</span>' : '';
+}
+
 /* ---------------- payout simulation ----------------
    Stands in for a real payout gateway (e.g. RazorpayX Payouts). A real
    backend would call the gateway here, hold the payment as "processing",
@@ -459,7 +471,8 @@ function seedPoojas(){
         devotee:devotee.name, devoteeMobile:devotee.mobile,
         agentId:agent.id, panditId:pandit.id,
         amount: 3000 + ((Math.abs(d*13+k*7))%9)*1000,
-        timeLabel: new Date(2000,0,1,hour,minute).toLocaleTimeString('en-IN',{hour:'numeric',minute:'2-digit',hour12:true})
+        timeLabel: new Date(2000,0,1,hour,minute).toLocaleTimeString('en-IN',{hour:'numeric',minute:'2-digit',hour12:true}),
+        mode: BOOKING_MODE_KEYS[mod(d+k+6, BOOKING_MODE_KEYS.length)]
       });
       n++;
     }
@@ -539,6 +552,7 @@ let S = {
   calSelected:null,
   modal:null, // {type:'addAgent'|'addPandit'|'agentCreds'|'panditCreds'|'editBank'|'addTemple'|'addAd', ...}
   devoteesSearch:'', devoteesLetter:null,
+  devoteesType:null, devoteesPayStatus:null, devoteesFrom:'', devoteesTo:'',
   agentsSearch:'', agentsLetter:null,
   panditsSearch:'', panditsLetter:null
 };
@@ -643,7 +657,8 @@ function crmDerivedPoojas(){
         agentName:ag?ag.name:null, agentMobile:ag?ag.phone:null, agentId:ag?ag.id:null,
         panditName:pd?pd.name:null, panditMobile:pd?pd.phone:null, panditId:pd?pd.id:null,
         amount:b.amount, fullyPaid:!!b.balancePaid,
-        advanceAmt:b.advanceAmt, balanceAmt:b.balanceAmt
+        advanceAmt:b.advanceAmt, balanceAmt:b.balanceAmt,
+        mode:b.mode
       };
     });
 }
@@ -808,20 +823,22 @@ function personCell(p){
 function livePill(){ return ' <span class="pill p-flow" title="Real booking, read live from the customer care portal" style="margin-left:4px">Live</span>'; }
 // Payment breakdown for the Devotees directory. CRM bookings pay in two real
 // stages (a ~20% advance, then the balance) with live advancePaid/balancePaid
-// flags; Total only reflects the pooja rate once both stages have cleared.
-// Seeded/demo poojas carry no staged-payment data of their own, so they're
-// shown as already fully paid with a notional 20/80 advance/balance split,
-// just for a consistent breakdown to display.
+// flags. Seeded/demo poojas carry no staged-payment data of their own, so
+// they're shown the same way any real booking looks before the balance is
+// paid: only the notional 20% advance is in, the rest is due. Either way,
+// Full payment and Total stay blank until the balance actually clears —
+// Total only ever shows the full pooja rate once nothing is left due.
 function poojaPayments(pj){
   const rate=pj.amount;
-  if(pj.source==='crm'){
-    const advance=pj.advanceAmt||0, balance=pj.balanceAmt||0;
-    const due = pj.fullyPaid ? 0 : balance;
-    const full = pj.fullyPaid ? balance : 0;
-    return {rate, advance, due, full, total: pj.fullyPaid ? rate : 0};
-  }
-  const advance=Math.round(rate*0.2), full=rate-advance;
-  return {rate, advance, due:0, full, total:rate};
+  const advance = pj.source==='crm' ? (pj.advanceAmt||0) : Math.round(rate*0.2);
+  const balance = pj.source==='crm' ? (pj.balanceAmt||0) : (rate-advance);
+  const fullyPaid = pj.source==='crm' ? !!pj.fullyPaid : false;
+  return {
+    rate, advance,
+    due: fullyPaid ? 0 : balance,
+    full: fullyPaid ? balance : 0,
+    total: fullyPaid ? rate : 0
+  };
 }
 
 /* ---------------- directory search + A-Z filtering (Devotees, Agents, Pandits) ---------------- */
@@ -840,6 +857,40 @@ function matchesQuery(hayParts, q){
 }
 function matchesLetter(name, letter){
   return !letter || (!!name && name.toUpperCase().startsWith(letter));
+}
+// A toggleable filter pill: data-act="set-filter" reads data-section+data-key
+// to know which S field to write (e.g. section "devotees" + key "Type" ->
+// S.devoteesType), and clicking the already-active one clears it back to "All".
+function filterPillBtn(section, key, label, val){
+  const active = S[section+key]===val;
+  return '<button class="btn btn-sm'+(active?' btn-pri':'')+'" data-act="set-filter" data-section="'+section+'" data-key="'+key+'" data-v="'+esc(val||'')+'">'+esc(label)+'</button>';
+}
+
+/* ---------------- CSV export ---------------- */
+function csvCell(v){
+  const s=String(v==null?'':v);
+  return /[",\r\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
+}
+function downloadCSV(filename, rows){
+  const csv=rows.map(r=>r.map(csvCell).join(',')).join('\r\n');
+  const blob=new Blob(['﻿'+csv], {type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+}
+function bookingsToCSV(list){
+  const header=['Devotee','Phone','Booking type','Pooja','Pooja ID','Temple','Agent','Agent ID','Pandit','Pandit ID',
+    'Pooja rate','Advance payment','Due','Full payment','Total','Payment status','Date','Time','Source'];
+  const body=list.map(pj=>{
+    const pay=poojaPayments(pj), ag=poojaAgent(pj), pd=poojaPandit(pj);
+    return [pj.devotee, pj.devoteeMobile, (BOOKING_TYPES[pj.mode]||{}).label||pj.mode||'', pj.puja, pj.id, poojaTemple(pj),
+      ag&&ag.name||'', ag&&ag.id||'', pd&&pd.name||'', pd&&pd.id||'',
+      pay.rate, pay.advance, pay.due, pay.full, pay.total, pay.due>0?'Due':'Fully paid',
+      pj.date, pj.timeLabel||'', pj.source==='crm'?'Live':'Seed'];
+  });
+  return [header, ...body];
 }
 
 function poojaDayScreen(iso){
@@ -972,7 +1023,8 @@ function adsScreen(){
 function modalHost(){
   const m=S.modal;
   const titles={addAgent:'Add agent',addPandit:'Add pandit',editBank:'Edit bank details',addTemple:'Add temple',addAd:'Add advertisement',
-    agentCreds:'Agent login created',panditCreds:'Pandit login created',showCreds:'Login details',payHistory:'Pay history',payAgent:'Pay agent'};
+    agentCreds:'Agent login created',panditCreds:'Pandit login created',showCreds:'Login details',payHistory:'Pay history',payAgent:'Pay agent',
+    exportBookings:'Export bookings'};
   return '<div class="modal" role="dialog" aria-modal="true"><div class="modal-backdrop" data-act="close-modal"></div>'+
    '<section class="modal-panel"><div class="modal-top"><strong>'+esc(titles[m.type]||'')+'</strong>'+
    '<button class="btn btn-sm" data-act="close-modal">✕ Close</button></div>'+
@@ -1016,6 +1068,13 @@ function modalBody(){
      '<p class="sub" style="margin:0 0 14px;font-size:12px">Enter any amount — the full pending balance, a partial payment, or an advance. A payment can fail (no bank details, a simulated gateway decline) — if it does, it won\'t be added to Paid and the reason shows on the agent and in Pay history.</p>'+
      '<button class="btn btn-pri btn-wide" data-act="submit-pay-agent" data-v="'+esc(a.id)+'">Pay '+esc(a.name)+'</button>';
   }
+  if(m.type==='exportBookings'){
+    const from=S.devoteesFrom, to=S.devoteesTo;
+    return '<p class="sub" style="margin:0 0 12px">Exports whatever the Devotees filters currently show (search, type, payment status). Pick a date range here to widen or narrow just the export — leave blank to export every booking in the last year.</p>'+
+     '<div class="fld"><label class="f" for="exp-from">From date</label><input class="inp" type="date" id="exp-from" value="'+esc(from)+'"></div>'+
+     '<div class="fld"><label class="f" for="exp-to">To date</label><input class="inp" type="date" id="exp-to" value="'+esc(to)+'"></div>'+
+     '<button class="btn btn-pri btn-wide" data-act="submit-export-bookings">Download CSV</button>';
+  }
   if(m.type==='payHistory'){
     const a=agent(m.id);
     const rows=(a.payments||[]).slice().sort((x,y)=>new Date(y.at)-new Date(x.at));
@@ -1045,22 +1104,53 @@ function modalBody(){
 
 /* ---------------- SCREEN MAP ---------------- */
 /* ---------------- DEVOTEES ---------------- */
-function devoteesScreen(){
+function devoteesFilteredRows(){
   const cutoff=new Date(Date.now()-POOJA_RETENTION_DAYS*DAY).toISOString().slice(0,10);
   const q=S.devoteesSearch, letter=S.devoteesLetter;
   let rows=allDailyPoojas().filter(pj=>{
     if(pj.date<cutoff) return false;
     if(!matchesLetter(pj.devotee, letter)) return false;
+    if(S.devoteesType && pj.mode!==S.devoteesType) return false;
+    if(S.devoteesFrom && pj.date<S.devoteesFrom) return false;
+    if(S.devoteesTo && pj.date>S.devoteesTo) return false;
+    if(S.devoteesPayStatus){
+      const due=poojaPayments(pj).due;
+      if(S.devoteesPayStatus==='due' && !(due>0)) return false;
+      if(S.devoteesPayStatus==='paid' && due>0) return false;
+    }
     const ag=poojaAgent(pj), pd=poojaPandit(pj);
     return matchesQuery([pj.devotee,pj.devoteeMobile,pj.id,pj.puja,
-      ag&&ag.name, ag&&ag.mobile, ag&&ag.id, pd&&pd.name, pd&&pd.mobile, pd&&pd.id], q);
+      ag&&ag.name, ag&&ag.mobile, ag&&ag.id, pd&&pd.name, pd&&pd.mobile, pd&&pd.id, poojaTemple(pj)], q);
   });
-  rows=rows.slice().sort((a,b)=> a.date<b.date?1:(a.date>b.date?-1:0));
+  return rows.slice().sort((a,b)=> a.date<b.date?1:(a.date>b.date?-1:0));
+}
+function devoteesScreen(){
+  const rows=devoteesFilteredRows();
+  const anyFilter = S.devoteesType||S.devoteesPayStatus||S.devoteesFrom||S.devoteesTo||S.devoteesSearch||S.devoteesLetter;
 
   return '<div class="eyebrow">Directory</div><h1 class="h-page">Devotees</h1>'+
-   '<p class="sub" style="margin:6px 0 14px;max-width:70ch">Every pooja from the last '+POOJA_RETENTION_DAYS+' days, seeded and live bookings together — who came, which pooja, and who worked it. Records older than a year are cleared automatically as they age out.</p>'+
-   dirSearchBar('devotees','Search by devotee, agent or pandit — name, phone or ID')+
-   '<div class="sub" style="margin:12px 0 8px">'+rows.length+' result'+(rows.length===1?'':'s')+'</div>'+
+   '<p class="sub" style="margin:6px 0 14px;max-width:70ch">Every pooja from the last '+POOJA_RETENTION_DAYS+' days — offline, online and subscription bookings, seeded and live together. Records older than a year are cleared automatically as they age out.</p>'+
+   '<div class="card" style="margin-bottom:14px">'+
+    dirSearchBar('devotees','Search by devotee, agent or pandit — name, phone or ID')+
+    '<div class="grid g2" style="margin-top:12px">'+
+     '<div class="fld" style="margin:0"><label class="f" for="devotees-from">From date</label><input class="inp" type="date" id="devotees-from" data-changeact="devotees-from" value="'+esc(S.devoteesFrom)+'"></div>'+
+     '<div class="fld" style="margin:0"><label class="f" for="devotees-to">To date</label><input class="inp" type="date" id="devotees-to" data-changeact="devotees-to" value="'+esc(S.devoteesTo)+'"></div>'+
+    '</div>'+
+    '<div class="row" style="margin-top:12px;gap:6px">'+
+     filterPillBtn('devotees','Type','All types','')+
+     Object.entries(BOOKING_TYPES).map(([k,v])=>filterPillBtn('devotees','Type',v.label,k)).join('')+
+    '</div>'+
+    '<div class="row" style="margin-top:8px;gap:6px">'+
+     filterPillBtn('devotees','PayStatus','All payments','')+
+     filterPillBtn('devotees','PayStatus','Fully paid','paid')+
+     filterPillBtn('devotees','PayStatus','Due pending','due')+
+    (anyFilter?'<button class="btn btn-sm" data-act="devotees-clear-filters">Clear filters</button>':'')+
+    '</div>'+
+   '</div>'+
+   '<div class="row" style="justify-content:space-between;align-items:center;margin:0 0 8px">'+
+    '<span class="sub">'+rows.length+' result'+(rows.length===1?'':'s')+'</span>'+
+    '<button class="btn btn-pri btn-sm" data-act="open-modal" data-v="exportBookings">⬇ Export</button>'+
+   '</div>'+
    (rows.length?'<div class="card"><div class="scroll-x"><table class="t"><thead><tr>'+
      '<th>Devotee</th><th>Pooja</th><th>Agent</th><th>Pandit</th>'+
      '<th>Pooja rate</th><th>Advance payment</th><th>Due</th><th>Full payment</th><th>Total</th>'+
@@ -1068,16 +1158,17 @@ function devoteesScreen(){
      rows.map(pj=>{
        const pay=poojaPayments(pj);
        return '<tr><td>'+esc(pj.devotee)+contactIcons(pj.devotee,pj.devoteeMobile)+'</td>'+
-        '<td>'+esc(pj.puja)+'<div class="sub mono" style="font-size:11px;margin-top:2px">'+esc(pj.id)+'</div>'+(pj.source==='crm'?livePill():'')+'</td>'+
+        '<td>'+esc(pj.puja)+'<div class="sub mono" style="font-size:11px;margin-top:2px">'+esc(pj.id)+'</div>'+
+         '<div class="row" style="gap:4px;margin-top:5px">'+bookingTypeTag(pj.mode)+(pj.source==='crm'?livePill():'')+'</div></td>'+
         '<td>'+personCell(poojaAgent(pj))+'</td><td>'+personCell(poojaPandit(pj))+'</td>'+
         '<td class="mono">'+INR(pay.rate)+'</td>'+
         '<td class="mono">'+INR(pay.advance)+'</td>'+
-        '<td class="mono">'+(pay.due>0?'<span class="pill p-warn">'+INR(pay.due)+'</span>':INR(0))+'</td>'+
+        '<td class="mono">'+(pay.due>0?'<span class="pill p-stop">'+INR(pay.due)+'</span>':INR(0))+'</td>'+
         '<td class="mono">'+(pay.full>0?INR(pay.full):'—')+'</td>'+
         '<td class="mono">'+(pay.total>0?'<span class="pill p-ok">'+INR(pay.total)+'</span>':'—')+'</td>'+
         '<td class="mono" style="white-space:nowrap">'+esc(fmtDate(pj.date))+'<div class="sub" style="margin-top:2px">'+esc(pj.timeLabel||'—')+'</div></td></tr>';
      }).join('')+
-    '</tbody></table></div></div>':'<div class="card"><div class="empty">No matching devotees.</div></div>');
+    '</tbody></table></div></div>':'<div class="card"><div class="empty">No bookings match these filters.</div></div>');
 }
 
 const SCREENS = {
@@ -1133,6 +1224,16 @@ document.addEventListener('click', e=>{
     const section=el.getAttribute('data-section'), letter=el.getAttribute('data-v')||null;
     const key=section+'Letter';
     S[key] = letter ? (S[key]===letter ? null : letter) : null;
+    return render();
+  }
+  if(act==='set-filter'){
+    const section=el.getAttribute('data-section'), key=el.getAttribute('data-key'), val=el.getAttribute('data-v')||null;
+    S[section+key] = val;
+    return render();
+  }
+  if(act==='devotees-clear-filters'){
+    S.devoteesSearch=''; S.devoteesLetter=null; S.devoteesType=null; S.devoteesPayStatus=null;
+    S.devoteesFrom=''; S.devoteesTo='';
     return render();
   }
 
@@ -1226,6 +1327,20 @@ document.addEventListener('click', e=>{
     toast('Payment notification sent to '+a.name+' via WhatsApp (simulated).');
     return;
   }
+  if(act==='submit-export-bookings'){
+    const from=(document.getElementById('exp-from')||{}).value||'';
+    const to=(document.getElementById('exp-to')||{}).value||'';
+    const origFrom=S.devoteesFrom, origTo=S.devoteesTo;
+    S.devoteesFrom=from; S.devoteesTo=to;
+    const rows=devoteesFilteredRows();
+    S.devoteesFrom=origFrom; S.devoteesTo=origTo;
+    if(!rows.length){ toast('No bookings match that range to export.', 'stop'); return; }
+    const stamp=(from||to)?(from||'start')+'_to_'+(to||'end'):'all';
+    downloadCSV('namonamaha-bookings-'+stamp+'.csv', bookingsToCSV(rows));
+    S.modal=null;
+    toast('Exported '+rows.length+' booking'+(rows.length===1?'':'s')+' to CSV.');
+    return render();
+  }
   if(act==='masked-call'){
     const name=el.getAttribute('data-name');
     toast('Connecting an internet call to '+name+' (simulated) — both numbers stay masked, routed via a provider like Exotel or Knowlarity.');
@@ -1257,6 +1372,8 @@ document.addEventListener('change', e=>{
   const act=el.getAttribute('data-changeact');
   if(act==='cal-set-month'){ S.calMonth=Number(el.value); return render(); }
   if(act==='cal-set-year'){ S.calYear=Number(el.value); return render(); }
+  if(act==='devotees-from'){ S.devoteesFrom=el.value; return render(); }
+  if(act==='devotees-to'){ S.devoteesTo=el.value; return render(); }
 });
 
 // Live update: if the customer care portal (open in another tab) saves a
