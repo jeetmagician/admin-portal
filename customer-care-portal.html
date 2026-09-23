@@ -4288,6 +4288,16 @@ function syncSharedCareLogin(){
       CARE_USERS[0].password=shared.password;
     }
   }catch(e){}
+  // Customer care logins the admin created per state (id prefix 'SC-'). Drop
+  // any from a previous run first so ones the admin has since removed vanish,
+  // then add the current set — they sign in on the normal login page.
+  try{
+    const list=JSON.parse(localStorage.getItem('nm_shared_state_care_logins')||'[]');
+    CARE_USERS=CARE_USERS.filter(u=>!String(u.id).startsWith('SC-'));
+    (Array.isArray(list)?list:[]).forEach(c=>{
+      if(c && c.id && c.loginId && c.password) CARE_USERS.push({id:c.id,name:'Customer care — '+c.state,loginId:c.loginId,password:c.password,active:true,state:c.state});
+    });
+  }catch(e){}
 }
 // Opened from the Admin Portal (?admin=1): enter as the admin with no login
 // typed, exactly as if the admin had just signed in — the same session state

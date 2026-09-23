@@ -14,7 +14,7 @@ python3 -m http.server 8080
 ```
 
 **Admin Portal login:** `admin` / `Namonamaha@2026`
-**Customer care portal:** click **Enter customer care portal** on the Admin Portal's *Customer care portal* tab to go straight in as Admin with no login. Signing in by hand also works: `admin` / `Admin@123`, or a care login such as `priya.care` / `Kamakhya@101` (the first care login's password can be changed from the Admin Portal — see below).
+**Customer care portal:** click **Enter customer care portal** on the Admin Portal's *Customer care portal* tab to go straight in as Admin with no login. Signing in by hand also works: `admin` / `Admin@123`, or a care login such as `priya.care` / `Kamakhya@101` (the main care login can be changed, and extra state logins created, from the Admin Portal — see below).
 
 ## What's in the Admin Portal
 
@@ -24,7 +24,7 @@ python3 -m http.server 8080
 - **Pandits** — roster with generated login credentials.
 - **Temples** — add/remove temples from the catalogue.
 - **Advertisements** — YouTube/Instagram/Facebook promo links, each with the real platform icon (cut to a transparent PNG from the provided brand marks).
-- **Customer care portal** — a one-click **Enter as Admin** into the CRM with no login ID/password (you're already signed in here), plus an editor for the first customer care account's login (changing it here changes what actually works over there; the other temples' accounts aren't managed from here yet).
+- **Customer care portal** — a one-click **Enter as Admin** into the CRM with no login ID/password (you're already signed in here), an editor for the main customer care login (changing it here changes what actually works over there), and **Customer care for a state** — create a new customer care login (state, login ID, password) that can then sign in on the CRM's normal login page, with a duplicate-ID check and a Remove button.
 - **Devotees** — a searchable directory of every pooja booking (seeded demo data plus real bookings synced from the CRM) with:
   - One-click **Call**, simulated **Internet call (masked)**, and **WhatsApp** icons for the devotee, agent, and pandit on every booking.
   - A full payment breakdown per booking: Pooja rate, Advance payment, Due, Full payment, Total. Full payment and Total only ever show once the balance has actually cleared — a booking with anything still due can't have started, no matter how close its date is.
@@ -50,7 +50,7 @@ Both apps share a visual identity (fonts, color tokens, the same wallpaper photo
 
 To re-sync after a CRM update:
 1. `git fetch <the CRM remote>` and diff its `index.html` against this repo's `customer-care-portal.html` to see what changed.
-2. Pull in the new `index.html` wholesale, then re-apply this repo's local-only additions (search for each by name — none exist upstream): the "← Admin portal" link in the top bar, the wallpaper background on `.care-login-wrap` (with its starfield markup removed), and `syncSharedCareLogin()` / `openAsAdminIfRequested()` in the bootstrap line. `openAsAdminIfRequested()` is what makes `?admin=1` enter as the admin with no login: it sets the same session state the CRM's own `cc-login` handler sets after a successful admin sign-in, so if the CRM changes how its login gate works, this needs updating too.
+2. Pull in the new `index.html` wholesale, then re-apply this repo's local-only additions (search for each by name — none exist upstream): the "← Admin portal" link in the top bar, the wallpaper background on `.care-login-wrap` (with its starfield markup removed), and `syncSharedCareLogin()` / `openAsAdminIfRequested()` in the bootstrap line. `syncSharedCareLogin()` also adds the state customer care logins the Admin Portal saves under `nm_shared_state_care_logins` as care users (ids prefixed `SC-`, replaced on every load so removed ones disappear). `openAsAdminIfRequested()` is what makes `?admin=1` enter as the admin with no login: it sets the same session state the CRM's own `cc-login` handler sets after a successful admin sign-in, so if the CRM changes how its login gate works, this needs updating too.
 3. Update `CRM_STORAGE_KEY` in this repo's `index.html` to match the CRM's new `STORAGE_KEY`.
 4. Re-test the bridge: open the CRM once (to seed/persist its data), then check Daily pooja / Devotees in the Admin Portal actually show a "Real booking" row.
 

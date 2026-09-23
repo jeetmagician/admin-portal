@@ -546,6 +546,31 @@ function loadCareLogin(){
 function saveCareLogin(v){ try{ localStorage.setItem(CARE_LOGIN_KEY, JSON.stringify(v)); }catch(e){} }
 let CARE_LOGIN = loadCareLogin();
 
+/* ---------------- customer care accounts created per state ----------------
+   Extra customer care logins the admin creates for a state. Kept in their own
+   shared key (an array of {id, state, loginId, password}); customer-care-
+   portal.html reads it at startup and adds each one as a care user, so the
+   ID and password work on its login page. */
+const STATE_CARE_KEY = 'nm_shared_state_care_logins';
+const INDIA_STATES = ['Andaman and Nicobar Islands','Andhra Pradesh','Arunachal Pradesh','Assam','Bihar','Chandigarh','Chhattisgarh',
+  'Dadra and Nagar Haveli and Daman and Diu','Delhi','Goa','Gujarat','Haryana','Himachal Pradesh','Jammu and Kashmir','Jharkhand','Karnataka',
+  'Kerala','Ladakh','Lakshadweep','Madhya Pradesh','Maharashtra','Manipur','Meghalaya','Mizoram','Nagaland','Odisha','Puducherry','Punjab',
+  'Rajasthan','Sikkim','Tamil Nadu','Telangana','Tripura','Uttar Pradesh','Uttarakhand','West Bengal'];
+function loadStateCare(){
+  try{ const raw=localStorage.getItem(STATE_CARE_KEY); if(raw){ const v=JSON.parse(raw); if(Array.isArray(v)) return v; } }catch(e){}
+  return [];
+}
+function saveStateCare(){ try{ localStorage.setItem(STATE_CARE_KEY, JSON.stringify(STATE_CARE)); }catch(e){} }
+let STATE_CARE = loadStateCare();
+// Login IDs already taken: the main care login, every state one, plus whatever
+// the customer care portal itself has saved (its own care and admin accounts).
+function takenLoginIds(){
+  const ids=[CARE_LOGIN.id].concat(STATE_CARE.map(x=>x.loginId));
+  const crm=loadCrmSnapshot();
+  if(crm){ (crm.CARE_USERS||[]).forEach(u=>ids.push(u.loginId)); (crm.ADMIN_USERS||[]).forEach(u=>ids.push(u.loginId)); }
+  return ids.filter(Boolean).map(x=>String(x).trim().toLowerCase());
+}
+
 /* ---------------- session ----------------
    localStorage (not sessionStorage) so the logged-in state is shared across
    tabs — the "← Admin portal" link from the CRM opens/returns to this same
@@ -732,8 +757,22 @@ function careScreen(){
    '</div>'+
    '<div class="card">'+
     '<div class="h-sec">Customer care login</div>'+
-    '<p class="sub" style="margin:6px 0 14px">The login ID and password for the first customer care account (Priya Sharma, Kamakhya temple) in the portal above. Changing it here changes what works over there. The other temples\' accounts aren\'t managed from here yet.</p>'+
+    '<p class="sub" style="margin:6px 0 14px">The main customer care login ID and password for the portal above. Changing it here changes what works over there.</p>'+
     (S.careLoginEdit ? careLoginEditForm() : careLoginView())+
+   '</div>'+
+   '<div class="card">'+
+    '<div class="row" style="justify-content:space-between;align-items:flex-start">'+
+     '<div><div class="h-sec">Customer care for a state</div>'+
+     '<p class="sub" style="margin:6px 0 14px;max-width:60ch">Create a new customer care login for a state. They sign in to the customer care portal with the ID and password you set here.</p></div>'+
+     '<button class="btn btn-pri btn-sm" data-act="open-modal" data-v="addStateCare">+ Add customer care</button>'+
+    '</div>'+
+    (STATE_CARE.length
+      ? '<div class="roster">'+STATE_CARE.map(c=>
+         '<div class="rrow"><div class="rrow-main"><div class="rrow-name">'+esc(c.state)+'</div>'+
+         '<div class="rrow-meta"><span>Login ID <b class="mono">'+esc(c.loginId)+'</b></span><span>Password <b class="mono">'+esc(c.password)+'</b></span></div></div>'+
+         '<div class="rrow-actions"><button class="btn btn-sm btn-stop" data-act="delete-state-care" data-v="'+esc(c.id)+'">Remove</button></div></div>'
+        ).join('')+'</div>'
+      : '<div class="empty">No state customer care logins yet.</div>')+
    '</div>';
 }
 function careLoginView(){
@@ -1066,7 +1105,7 @@ function modalHost(){
   const m=S.modal;
   const titles={addAgent:'Add agent',addPandit:'Add pandit',editBank:'Edit bank details',addTemple:'Add temple',addAd:'Add advertisement',
     agentCreds:'Agent login created',panditCreds:'Pandit login created',showCreds:'Login details',payHistory:'Pay history',payAgent:'Pay agent',
-    exportBookings:'Export bookings'};
+    exportBookings:'Export bookings',addStateCare:'Add customer care for a state'};
   return '<div class="modal" role="dialog" aria-modal="true"><div class="modal-backdrop" data-act="close-modal"></div>'+
    '<section class="modal-panel"><div class="modal-top"><strong>'+esc(titles[m.type]||'')+'</strong>'+
    '<button class="btn btn-sm" data-act="close-modal">✕ Close</button></div>'+
@@ -1110,6 +1149,11 @@ function modalBody(){
      '<p class="sub" style="margin:0 0 14px;font-size:12px">Enter any amount — the full pending balance, a partial payment, or an advance. A payment can fail (no bank details, a simulated gateway decline) — if it does, it won\'t be added to Paid and the reason shows on the agent and in Pay history.</p>'+
      '<button class="btn btn-pri btn-wide" data-act="submit-pay-agent" data-v="'+esc(a.id)+'">Pay '+esc(a.name)+'</button>';
   }
+  if(m.type==='addStateCare') return '<div class="fld"><label class="f" for="sc-state">State</label><select class="inp" id="sc-state"><option value="">Choose a state…</option>'+
+     INDIA_STATES.map(x=>'<option value="'+esc(x)+'">'+esc(x)+'</option>').join('')+'</select></div>'+
+   '<div class="fld"><label class="f" for="sc-id">Login ID</label><input class="inp" id="sc-id" placeholder="e.g. assam.care" autocomplete="off"></div>'+
+   '<div class="fld"><label class="f" for="sc-pw">Password</label><input class="inp" id="sc-pw" placeholder="Set a password" autocomplete="off"></div>'+
+   '<button class="btn btn-pri btn-wide" data-act="submit-add-state-care">Create customer care</button>';
   if(m.type==='exportBookings'){
     const from=S.devoteesFrom, to=S.devoteesTo;
     return '<p class="sub" style="margin:0 0 12px">Exports whatever the Devotees filters currently show (search, type, payment status). Pick a date range here to widen or narrow just the export — leave blank to export every booking in the last year.</p>'+
@@ -1397,6 +1441,22 @@ document.addEventListener('click', e=>{
   if(act==='care-login-pw-toggle'){ S.careLoginPwShow=!S.careLoginPwShow; return render(); }
   if(act==='care-login-edit-start'){ S.careLoginEdit=true; return render(); }
   if(act==='care-login-cancel'){ S.careLoginEdit=false; return render(); }
+  if(act==='submit-add-state-care'){
+    const state=(document.getElementById('sc-state')||{}).value||'';
+    const loginId=((document.getElementById('sc-id')||{}).value||'').trim();
+    const password=((document.getElementById('sc-pw')||{}).value||'').trim();
+    if(!state||!loginId||!password) return toast('Choose a state and enter a login ID and password.');
+    if(takenLoginIds().includes(loginId.toLowerCase())) return toast('That login ID is already in use. Choose a different one.','stop');
+    STATE_CARE.push({id:genId('SC', STATE_CARE.map(x=>x.id)), state, loginId, password});
+    saveStateCare(); S.modal=null;
+    toast('Customer care created for '+state+'.');
+    return render();
+  }
+  if(act==='delete-state-care'){
+    if(!confirm('Remove this customer care login? They will no longer be able to sign in.')) return;
+    STATE_CARE=STATE_CARE.filter(x=>x.id!==v); saveStateCare();
+    return render();
+  }
   if(act==='care-login-save'){
     const id=(document.getElementById('cc-id')||{}).value.trim();
     const password=(document.getElementById('cc-pw')||{}).value.trim();
