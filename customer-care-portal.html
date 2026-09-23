@@ -4246,7 +4246,21 @@ function syncSharedCareLogin(){
   }catch(e){}
 }
 
-seed(); restoreDemo(); syncSharedCareLogin(); tick(); render();
+// Opened from the Admin Portal (?admin=1): land straight in this app's own
+// Admin panel, fully unmasked — the CRM's Customer Care role masks a
+// devotee's name/phone (see isCareMasked), but Admin was always meant to see
+// everything, the same way this app's own PERMS table already treats it.
+// There's no separate admin login here to gate behind (a documented,
+// pre-existing gap in this CRM, not something introduced by this shortcut) —
+// the CRM's own footer "Care team access" link already reaches this screen
+// the same unguarded way.
+function openAsAdminIfRequested(){
+  try{
+    if(new URLSearchParams(window.location.search).get('admin')==='1'){ S.role='admin'; S.sub='dash'; }
+  }catch(e){}
+}
+
+seed(); restoreDemo(); syncSharedCareLogin(); openAsAdminIfRequested(); tick(); render();
 
 </script>
 </body>
