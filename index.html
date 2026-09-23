@@ -194,6 +194,14 @@ table.t tr:last-child td{border-bottom:none}
 .icon-btn:hover{background:var(--surface-3);color:var(--ink)}
 .icon-btn.icon-wa:hover{color:#25D366;border-color:#25D366}
 
+/* ---------- directory search + A-Z strip ---------- */
+.dir-search{max-width:360px;width:100%}
+.alpha-strip{display:flex;flex-wrap:wrap;gap:4px;margin:10px 0 4px}
+.alpha-btn{min-width:26px;height:26px;padding:0 6px;border-radius:6px;border:1px solid var(--line-2);background:var(--surface-2);color:var(--ink-2);font-family:var(--mono);font-size:11px;cursor:pointer;appearance:none}
+.alpha-btn:hover{background:var(--surface-3);color:var(--ink)}
+.alpha-btn.active{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+.alpha-btn.dim{opacity:.35;cursor:default}
+
 /* ---------- calendar ---------- */
 .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
 .cal-dow{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-3);text-align:center;padding:4px 0}
@@ -383,8 +391,10 @@ const NAV = [
   ['pandits','Pandits'],
   ['temples','Temples'],
   ['ads','Advertisements'],
-  ['care','Customer care portal']
+  ['care','Customer care portal'],
+  ['devotees','Devotees']
 ];
+const POOJA_RETENTION_DAYS = 365;
 
 /* ---------------- seed data ---------------- */
 const SEED_TEMPLES = [
@@ -442,12 +452,14 @@ function seedPoojas(){
       const agent=SEED_AGENTS[mod(d+k+1, SEED_AGENTS.length)];
       const pandit=SEED_PANDITS[mod(d+k+2, SEED_PANDITS.length)];
       const devotee=DEVOTEES[mod(d+k+5, DEVOTEES.length)];
+      const hour=8+mod(d+k,10), minute=mod((d+k)*17,60);
       out.push({
         id:'PJ-'+String(1000+n), date, templeId:temple.id,
         puja:PUJA_NAMES[mod(d+k+3, PUJA_NAMES.length)],
         devotee:devotee.name, devoteeMobile:devotee.mobile,
         agentId:agent.id, panditId:pandit.id,
-        amount: 3000 + ((Math.abs(d*13+k*7))%9)*1000
+        amount: 3000 + ((Math.abs(d*13+k*7))%9)*1000,
+        timeLabel: new Date(2000,0,1,hour,minute).toLocaleTimeString('en-IN',{hour:'numeric',minute:'2-digit',hour12:true})
       });
       n++;
     }
@@ -473,7 +485,7 @@ function loadStore(){
 function saveStore(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(DB)); }catch(e){ console.error('saveStore failed:', e); } }
 let DB = loadStore();
 if(!DB.poojas || !DB.poojas.length) { DB.poojas = seedPoojas(); saveStore(); }
-// Backfill devotee phone numbers into poojas saved before DEVOTEES carried them.
+// Backfill devotee phone numbers / a time label into poojas saved before those fields existed.
 (function migratePoojas(){
   let changed=false;
   DB.poojas.forEach(pj=>{
@@ -481,8 +493,17 @@ if(!DB.poojas || !DB.poojas.length) { DB.poojas = seedPoojas(); saveStore(); }
       const dv=DEVOTEES.find(d=>d.name===pj.devotee);
       if(dv){ pj.devoteeMobile=dv.mobile; changed=true; }
     }
+    if(!pj.timeLabel){ pj.timeLabel='—'; changed=true; }
   });
   if(changed) saveStore();
+})();
+// Keep a rolling one-year window: prune poojas older than that on every load,
+// so old records age out day by day rather than accumulating forever.
+(function pruneOldPoojas(){
+  const cutoff=new Date(Date.now()-POOJA_RETENTION_DAYS*DAY).toISOString().slice(0,10);
+  const before=DB.poojas.length;
+  DB.poojas=DB.poojas.filter(pj=>pj.date>=cutoff);
+  if(DB.poojas.length!==before) saveStore();
 })();
 
 /* ---------------- customer care login (shared with the CRM) ----------------
@@ -516,7 +537,10 @@ let S = {
   loginError:null, pwShow:false,
   calYear:new Date().getFullYear(), calMonth:new Date().getMonth(),
   calSelected:null,
-  modal:null // {type:'addAgent'|'addPandit'|'agentCreds'|'panditCreds'|'editBank'|'addTemple'|'addAd', ...}
+  modal:null, // {type:'addAgent'|'addPandit'|'agentCreds'|'panditCreds'|'editBank'|'addTemple'|'addAd', ...}
+  devoteesSearch:'', devoteesLetter:null,
+  agentsSearch:'', agentsLetter:null,
+  panditsSearch:'', panditsLetter:null
 };
 
 function render(){
@@ -608,10 +632,11 @@ function crmDerivedPoojas(){
             ag=findBy(crm.AGENTS,b.agentId), pd=findBy(crm.PANDITS,b.pandaId);
       return {
         id:'CRM-'+b.id, source:'crm', date:new Date(b.pujaAt).toISOString().slice(0,10),
+        timeLabel:new Date(b.pujaAt).toLocaleTimeString('en-IN',{hour:'numeric',minute:'2-digit',hour12:true}),
         templeName:t?t.name:'—', puja:pj?pj.name:'—',
         devotee:b.devotee.name, devoteeMobile:b.devotee.phone,
-        agentName:ag?ag.name:null, agentMobile:ag?ag.phone:null,
-        panditName:pd?pd.name:null, panditMobile:pd?pd.phone:null,
+        agentName:ag?ag.name:null, agentMobile:ag?ag.phone:null, agentId:ag?ag.id:null,
+        panditName:pd?pd.name:null, panditMobile:pd?pd.phone:null, panditId:pd?pd.id:null,
         amount:b.amount, fullyPaid:!!b.balancePaid
       };
     });
@@ -767,6 +792,33 @@ function contactIcons(name, mobile){
    '<a class="icon-btn icon-wa" href="https://wa.me/'+digits+'" target="_blank" rel="noopener" title="WhatsApp '+esc(name)+'" aria-label="WhatsApp '+esc(name)+'" onclick="event.stopPropagation()">'+ICON_WA+'</a>'+
   '</div>';
 }
+/* ---------------- shared pooja/person resolution (seeded + CRM-derived) ---------------- */
+function poojaTemple(pj){ return pj.source==='crm' ? pj.templeName : (temple(pj.templeId)?temple(pj.templeId).name:'—'); }
+function poojaAgent(pj){ return pj.source==='crm' ? {name:pj.agentName, mobile:pj.agentMobile, id:pj.agentId} : agent(pj.agentId); }
+function poojaPandit(pj){ return pj.source==='crm' ? {name:pj.panditName, mobile:pj.panditMobile, id:pj.panditId} : pandit(pj.panditId); }
+function personCell(p){
+  return (p&&p.name)?esc(p.name)+(p.id?'<div class="sub mono" style="font-size:11px;margin-top:2px">'+esc(p.id)+'</div>':'')+contactIcons(p.name,p.mobile):'—';
+}
+function livePill(){ return ' <span class="pill p-flow" title="Real booking, read live from the customer care portal" style="margin-left:4px">Live</span>'; }
+
+/* ---------------- directory search + A-Z filtering (Devotees, Agents, Pandits) ---------------- */
+const ALPHA_LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+function dirSearchBar(section, placeholder){
+  const q=S[section+'Search']||'', active=S[section+'Letter'];
+  return '<input class="inp dir-search" type="text" id="dir-search-'+section+'" placeholder="'+esc(placeholder)+'" value="'+esc(q)+'" data-searchact="'+section+'">'+
+   '<div class="alpha-strip">'+
+    '<button class="alpha-btn'+(!active?' active':'')+'" data-act="letter-filter" data-section="'+section+'" data-v="">All</button>'+
+    ALPHA_LETTERS.map(l=>'<button class="alpha-btn'+(active===l?' active':'')+'" data-act="letter-filter" data-section="'+section+'" data-v="'+l+'">'+l+'</button>').join('')+
+   '</div>';
+}
+function matchesQuery(hayParts, q){
+  if(!q || !q.trim()) return true;
+  return hayParts.filter(Boolean).join(' ').toLowerCase().includes(q.trim().toLowerCase());
+}
+function matchesLetter(name, letter){
+  return !letter || (!!name && name.toUpperCase().startsWith(letter));
+}
+
 function poojaDayScreen(iso){
   const list=allDailyPoojas().filter(pj=>pj.date===iso);
   const total=list.reduce((s,pj)=>s+pj.amount,0);
@@ -775,15 +827,10 @@ function poojaDayScreen(iso){
    (list.length?'<div class="card" style="margin-top:14px"><div class="scroll-x"><table class="t"><thead><tr>'+
      '<th>Temple</th><th>Pooja</th><th>Devotee</th><th>Agent</th><th>Pandit</th><th>Amount</th><th>Status</th></tr></thead><tbody>'+
      list.map(pj=>{
-       const isCrm = pj.source==='crm';
-       const templeName = isCrm ? pj.templeName : (temple(pj.templeId)?temple(pj.templeId).name:'—');
-       const ag = isCrm ? {name:pj.agentName, mobile:pj.agentMobile} : agent(pj.agentId);
-       const pd = isCrm ? {name:pj.panditName, mobile:pj.panditMobile} : pandit(pj.panditId);
        const done=isCompleted(pj);
-       const person=p=>(p&&p.name)?esc(p.name)+(p.id?'<div class="sub mono" style="font-size:11px;margin-top:2px">'+esc(p.id)+'</div>':'')+contactIcons(p.name,p.mobile):'—';
-       return '<tr><td>'+esc(templeName)+(isCrm?' <span class="pill p-flow" title="Real booking, read live from the customer care portal" style="margin-left:4px">Live</span>':'')+'</td><td>'+esc(pj.puja)+'</td>'+
+       return '<tr><td>'+esc(poojaTemple(pj))+(pj.source==='crm'?livePill():'')+'</td><td>'+esc(pj.puja)+'</td>'+
         '<td>'+esc(pj.devotee)+contactIcons(pj.devotee,pj.devoteeMobile)+'</td>'+
-        '<td>'+person(ag)+'</td><td>'+person(pd)+'</td>'+
+        '<td>'+personCell(poojaAgent(pj))+'</td><td>'+personCell(poojaPandit(pj))+'</td>'+
         '<td class="mono">'+INR(pj.amount)+'</td>'+
         '<td>'+(done?'<span class="pill p-ok">Completed</span>':'<span class="pill p-info">Upcoming</span>')+'</td></tr>';
      }).join('')+
@@ -809,12 +856,16 @@ function templesScreen(){
 
 /* ---------------- AGENTS ---------------- */
 function agentsScreen(){
+  const q=S.agentsSearch, letter=S.agentsLetter;
+  const list=DB.agents.filter(a=>matchesLetter(a.name,letter) && matchesQuery([a.name,a.mobile,a.whatsapp,a.id],q));
   return '<div class="eyebrow">People</div><h1 class="h-page">Agents</h1>'+
    '<div class="row" style="justify-content:space-between;margin:10px 0 14px">'+
     '<p class="sub" style="margin:0">Contact, bank details and payouts. Agents earn '+INR(AGENT_COMMISSION)+' per completed pooja.</p>'+
     '<button class="btn btn-pri btn-sm" data-act="open-modal" data-v="addAgent">+ Add agent</button>'+
    '</div>'+
-   (DB.agents.length?'<div class="stack">'+DB.agents.map(agentCard).join('')+'</div>':'<div class="empty">No agents yet.</div>');
+   dirSearchBar('agents','Search agents — name, phone or ID')+
+   '<div class="sub" style="margin:12px 0 8px">'+list.length+' of '+DB.agents.length+' agent'+(DB.agents.length===1?'':'s')+'</div>'+
+   (list.length?'<div class="stack">'+list.map(agentCard).join('')+'</div>':'<div class="empty">No matching agents.</div>');
 }
 function agentCard(a){
   const earned=agentEarned(a.id);
@@ -855,20 +906,24 @@ function agentCard(a){
 
 /* ---------------- PANDITS ---------------- */
 function panditsScreen(){
+  const q=S.panditsSearch, letter=S.panditsLetter;
+  const list=DB.pandits.filter(p=>matchesLetter(p.name,letter) && matchesQuery([p.name,p.mobile,p.id],q));
   return '<div class="eyebrow">People</div><h1 class="h-page">Pandits</h1>'+
    '<div class="row" style="justify-content:space-between;margin:10px 0 14px">'+
     '<p class="sub" style="margin:0">'+DB.pandits.length+' pandit'+(DB.pandits.length===1?'':'s')+' with portal access.</p>'+
     '<button class="btn btn-pri btn-sm" data-act="open-modal" data-v="addPandit">+ Add pandit</button>'+
    '</div>'+
-   (DB.pandits.length?'<div class="card"><div class="roster">'+
-    DB.pandits.map(p=>{
+   dirSearchBar('pandits','Search pandits — name, phone or ID')+
+   '<div class="sub" style="margin:12px 0 8px">'+list.length+' of '+DB.pandits.length+' pandit'+(DB.pandits.length===1?'':'s')+'</div>'+
+   (list.length?'<div class="card"><div class="roster">'+
+    list.map(p=>{
       const count=DB.poojas.filter(pj=>pj.panditId===p.id && isCompleted(pj)).length;
       return '<div class="rrow"><div class="rrow-main"><div class="rrow-name">'+esc(p.name)+'</div>'+
        '<div class="rrow-meta"><span class="mono">'+esc(p.id)+'</span><span>'+esc(p.mobile)+'</span><span>'+count+' completed</span></div></div>'+
        '<div class="rrow-actions"><button class="btn btn-sm" data-act="show-creds" data-v="'+esc(p.id)+'" data-kind="pandit">View login</button>'+
        '<button class="btn btn-sm btn-stop" data-act="delete-pandit" data-v="'+esc(p.id)+'">Delete</button></div></div>';
     }).join('')+
-   '</div></div>':'<div class="empty">No pandits yet.</div>');
+   '</div></div>':'<div class="empty">No matching pandits.</div>');
 }
 
 /* ---------------- ADVERTISEMENTS ---------------- */
@@ -966,6 +1021,34 @@ function modalBody(){
 }
 
 /* ---------------- SCREEN MAP ---------------- */
+/* ---------------- DEVOTEES ---------------- */
+function devoteesScreen(){
+  const cutoff=new Date(Date.now()-POOJA_RETENTION_DAYS*DAY).toISOString().slice(0,10);
+  const q=S.devoteesSearch, letter=S.devoteesLetter;
+  let rows=allDailyPoojas().filter(pj=>{
+    if(pj.date<cutoff) return false;
+    if(!matchesLetter(pj.devotee, letter)) return false;
+    const ag=poojaAgent(pj), pd=poojaPandit(pj);
+    return matchesQuery([pj.devotee,pj.devoteeMobile,pj.id,pj.puja,
+      ag&&ag.name, ag&&ag.mobile, ag&&ag.id, pd&&pd.name, pd&&pd.mobile, pd&&pd.id], q);
+  });
+  rows=rows.slice().sort((a,b)=> a.date<b.date?1:(a.date>b.date?-1:0));
+
+  return '<div class="eyebrow">Directory</div><h1 class="h-page">Devotees</h1>'+
+   '<p class="sub" style="margin:6px 0 14px;max-width:70ch">Every pooja from the last '+POOJA_RETENTION_DAYS+' days, seeded and live bookings together — who came, which pooja, and who worked it. Records older than a year are cleared automatically as they age out.</p>'+
+   dirSearchBar('devotees','Search by devotee, agent or pandit — name, phone or ID')+
+   '<div class="sub" style="margin:12px 0 8px">'+rows.length+' result'+(rows.length===1?'':'s')+'</div>'+
+   (rows.length?'<div class="card"><div class="scroll-x"><table class="t"><thead><tr>'+
+     '<th>Devotee</th><th>Pooja</th><th>Agent</th><th>Pandit</th><th>Date &amp; time</th></tr></thead><tbody>'+
+     rows.map(pj=>{
+       return '<tr><td>'+esc(pj.devotee)+contactIcons(pj.devotee,pj.devoteeMobile)+'</td>'+
+        '<td>'+esc(pj.puja)+'<div class="sub mono" style="font-size:11px;margin-top:2px">'+esc(pj.id)+'</div>'+(pj.source==='crm'?livePill():'')+'</td>'+
+        '<td>'+personCell(poojaAgent(pj))+'</td><td>'+personCell(poojaPandit(pj))+'</td>'+
+        '<td class="mono" style="white-space:nowrap">'+esc(fmtDate(pj.date))+'<div class="sub" style="margin-top:2px">'+esc(pj.timeLabel||'—')+'</div></td></tr>';
+     }).join('')+
+    '</tbody></table></div></div>':'<div class="card"><div class="empty">No matching devotees.</div></div>');
+}
+
 const SCREENS = {
   overview: overviewScreen,
   pooja: poojaScreen,
@@ -973,7 +1056,8 @@ const SCREENS = {
   pandits: panditsScreen,
   temples: templesScreen,
   ads: adsScreen,
-  care: careScreen
+  care: careScreen,
+  devotees: devoteesScreen
 };
 
 /* ---------------- actions ---------------- */
@@ -1013,6 +1097,13 @@ document.addEventListener('click', e=>{
   if(act==='cal-today'){ const n=new Date(); S.calYear=n.getFullYear(); S.calMonth=n.getMonth(); return render(); }
   if(act==='cal-open'){ S.calSelected=v; return render(); }
   if(act==='cal-back'){ S.calSelected=null; return render(); }
+
+  if(act==='letter-filter'){
+    const section=el.getAttribute('data-section'), letter=el.getAttribute('data-v')||null;
+    const key=section+'Letter';
+    S[key] = letter ? (S[key]===letter ? null : letter) : null;
+    return render();
+  }
 
   if(act==='open-modal'){ S.modal={type:v, id:el.getAttribute('data-id')}; return render(); }
   if(act==='close-modal'){ S.modal=null; return render(); }
@@ -1142,6 +1233,19 @@ document.addEventListener('change', e=>{
 // so Daily pooja reflects it without needing a manual refresh.
 window.addEventListener('storage', e=>{
   if(e.key===CRM_STORAGE_KEY && isLoggedIn()) render();
+});
+
+// Live directory search: re-render on every keystroke to filter, but restore
+// focus and cursor position afterward since render() rebuilds the DOM node.
+document.addEventListener('input', e=>{
+  const el=e.target.closest('[data-searchact]');
+  if(!el) return;
+  const section=el.getAttribute('data-searchact');
+  S[section+'Search']=el.value;
+  const id=el.id, caret=el.selectionStart;
+  render();
+  const again=document.getElementById(id);
+  if(again){ again.focus(); try{ again.setSelectionRange(caret,caret); }catch(err){} }
 });
 
 render();
