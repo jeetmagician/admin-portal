@@ -608,14 +608,19 @@ function agentEarned(agentId){
 
 /* ---------------- live bookings from the customer care portal ----------------
    Same origin, so we can read the CRM's own localStorage snapshot directly.
-   Once a devotee's booking there has the advance (20%) or the full amount
-   paid, it shows up here with the real devotee phone number they entered —
-   no separate sync step needed, just re-read on render (and on a storage
-   event, so another open tab updates this one live). Temple/agent/pandit
-   names are resolved from the CRM's own reference data (its roster is
-   independent of this portal's own Agents/Pandits/Temples), not looked up
-   against DB.temples/agents/pandits — and these bookings are shown only in
-   Daily pooja; they intentionally don't feed Overview income or agent
+   A booking only counts as a real, live pooja once an onsite agent is
+   assigned — without one the pooja can't happen at all, so advance
+   payment alone isn't enough to show it here. The pandit is assigned
+   later by that same agent (known for certain only once the closing OTP
+   comes back), so a blank Pandit on a Live row is expected; a blank
+   Agent on a Live row would not be. It shows up here with the real
+   devotee phone number they entered — no separate sync step needed, just
+   re-read on render (and on a storage event, so another open tab updates
+   this one live). Temple/agent/pandit names are resolved from the CRM's
+   own reference data (its roster is independent of this portal's own
+   Agents/Pandits/Temples), not looked up against DB.temples/agents/
+   pandits — and these bookings are shown only in Daily pooja and
+   Devotees; they intentionally don't feed Overview income or agent
    payouts, which stay scoped to this portal's own seeded/added data. */
 const CRM_STORAGE_KEY = 'namonamaha-care-demo-v6';
 function loadCrmSnapshot(){
@@ -626,7 +631,7 @@ function crmDerivedPoojas(){
   if(!crm || !crm.DB || !Array.isArray(crm.DB.bookings)) return [];
   const findBy = (arr,id) => (arr||[]).find(x=>x.id===id);
   return crm.DB.bookings
-    .filter(b => b.advancePaid && b.status!=='CANCELLED' && b.devotee && b.devotee.phone)
+    .filter(b => b.advancePaid && b.agentId && b.status!=='CANCELLED' && b.devotee && b.devotee.phone)
     .map(b => {
       const t=findBy(crm.TEMPLES,b.templeId), pj=findBy(crm.PUJAS,b.pujaId),
             ag=findBy(crm.AGENTS,b.agentId), pd=findBy(crm.PANDITS,b.pandaId);
