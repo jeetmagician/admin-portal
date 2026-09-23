@@ -587,7 +587,7 @@ function shell(){
 function topbar(){
   return '<div class="top"><div class="top-in">'+
    '<div class="brand"><span class="om-mark" aria-hidden="true">ॐ</span>'+
-   '<img src="logo-transparent.png" alt="Namonamaha" class="brand-logo" onerror="this.style.display=\'none\'">'+
+   '<img src="logo-transparent.png?v=2" alt="Namonamaha" class="brand-logo" onerror="this.style.display=\'none\'">'+
    '<span>Admin</span></div>'+
    '<span class="tagpill">Prototype</span>'+
    '<div class="top-sp"></div>'+
@@ -606,7 +606,7 @@ function loginScreen(){
   return '<div class="login-wrap">'+
    '<div class="login-card">'+
    '<span class="om-mark lg" aria-hidden="true">ॐ</span>'+
-   '<img src="logo-transparent.png" alt="Namonamaha" class="login-logo" onerror="this.style.display=\'none\'">'+
+   '<img src="logo-transparent.png?v=2" alt="Namonamaha" class="login-logo" onerror="this.style.display=\'none\'">'+
    '<div class="eyebrow" style="text-align:center">Admin portal</div>'+
    '<h1 class="h-page" style="text-align:center;margin:4px 0 4px">Admin sign in</h1>'+
    '<p class="sub" style="text-align:center;margin:0 0 18px">Login ID and password for the Namonamaha admin console.</p>'+
@@ -646,7 +646,7 @@ function agentEarned(agentId){
    pandits — and these bookings are shown only in Daily pooja and
    Devotees; they intentionally don't feed Overview income or agent
    payouts, which stay scoped to this portal's own seeded/added data. */
-const CRM_STORAGE_KEY = 'namonamaha-care-demo-v6';
+const CRM_STORAGE_KEY = 'namonamaha-care-demo-v8'; // bump this if the CRM's own STORAGE_KEY changes again
 function loadCrmSnapshot(){
   try{ return JSON.parse(localStorage.getItem(CRM_STORAGE_KEY)||'null'); }catch(e){ return null; }
 }

@@ -2,7 +2,7 @@
 
 A single-file, front-end-only **prototype** of the admin console for Namonamaha, a service that books Hindu temple rituals (poojas) for devotees — offline (in-person), online, and weekly/monthly subscription bookings. It runs entirely in the browser with no backend: no real database, no real payments, no real messages. Everything is simulated so the full admin workflow can be seen, tried, and handed off as a spec.
 
-It's designed to work alongside a companion prototype, the **customer care portal** (the CRM used by care staff, onsite agents, and pandits), which is included in this repo as `customer-care-portal.html`.
+It's designed to work alongside a companion prototype, the **customer care portal** (the CRM used by care staff, onsite agents, and pandits). That CRM has its own separate repo, [`jeetmagician/customer-care-portal`](https://github.com/jeetmagician/customer-care-portal) — this repo keeps its own copy as `customer-care-portal.html` (see "Keeping the CRM copy in sync" below for why that matters and how to redo it).
 
 ## Running it locally
 
@@ -38,10 +38,23 @@ Both apps share a visual identity (fonts, color tokens, the same wallpaper photo
 
 ## Architecture notes
 
-- **No backend.** All state lives in the browser's `localStorage`. `index.html` owns `nm_admin_v1` (temples, agents, pandits, ads, seeded poojas) and a couple of small shared keys; `customer-care-portal.html` owns its own larger snapshot (`namonamaha-care-demo-v6`) with its full booking/staff/roster data.
+- **No backend.** All state lives in the browser's `localStorage`. `index.html` owns `nm_admin_v1` (temples, agents, pandits, ads, seeded poojas) and a couple of small shared keys; `customer-care-portal.html` owns its own larger snapshot (`namonamaha-care-demo-v8`) with its full booking/staff/roster data.
 - **The CRM bridge is one-directional and intentionally scoped.** The Admin Portal reads real bookings from the CRM to enrich Daily pooja and Devotees only — it deliberately does **not** feed the CRM's agents/temples into Overview income or Agent payouts. Those two systems have independent rosters, and merging them into one financial ledger is a bigger, separate problem than this prototype solves.
 - **Everything that looks like money moving or a message sending is simulated** — payouts, WhatsApp notifications, masked calls, OTPs. The one genuinely real action is the Devotees CSV export, which is a real client-side file download.
 - **No real authentication.** Login credentials are hardcoded/generated for the prototype and are not meant to be secure.
+- **The CRM's own PII masking doesn't affect this bridge.** The CRM masks a devotee's name/phone *at render time*, only inside its own `cc` (Customer Care) role screens — the underlying stored data is always the real value. The Admin Portal reads that raw stored data directly, the same way the CRM's own `admin` role does, so devotee contact info shown here is genuinely real, by design, not a masking bypass.
+
+### Keeping the CRM copy in sync
+
+`customer-care-portal.html` here is a **manually-synced copy** of the separate CRM repo, not a live pull — the two repos have independent git histories. This matters because the CRM bridge (`CRM_STORAGE_KEY` in `index.html`, currently `'namonamaha-care-demo-v8'`) has to match whatever `STORAGE_KEY` the CRM's own `index.html` is actually using. If the CRM repo bumps its storage key (it does this on every change to its data shape) and this copy isn't updated to match, the bridge silently reads a key that no longer exists — Daily pooja/Devotees just quietly stop showing any real bookings, with no error.
+
+To re-sync after a CRM update:
+1. `git fetch <the CRM remote>` and diff its `index.html` against this repo's `customer-care-portal.html` to see what changed.
+2. Pull in the new `index.html` wholesale, then re-apply this repo's two local-only additions: the "← Admin portal" link in the top bar, and the `syncSharedCareLogin()` call in its bootstrap line (search for both by name — they don't exist upstream).
+3. Update `CRM_STORAGE_KEY` in this repo's `index.html` to match the CRM's new `STORAGE_KEY`.
+4. Re-test the bridge: open the CRM once (to seed/persist its data), then check Daily pooja / Devotees in the Admin Portal actually show a "Real booking" row.
+
+As of this sync, the CRM has grown a **two-desk customer care model** (two care teams, "Desk A"/"Desk B", each seeing only their own agents/bookings) and devotee PII masking inside its own CC screens — neither concept is reflected in the Admin Portal yet, since neither was asked for here.
 
 ## Files
 
