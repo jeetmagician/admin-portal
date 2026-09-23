@@ -20,6 +20,7 @@ python3 -m http.server 8080
 
 ## What's in the Admin Portal
 
+- **Dark / light mode** — an ON/OFF switch in the top bar (and on the sign-in page) flips the whole app between dark and light; the choice is remembered, and defaults to the computer's setting.
 - **Overview** — total and monthly income (counted once a pooja's date has passed), upcoming booking value, pending agent payouts, and an income-by-temple breakdown.
 - **Daily pooja** — a full calendar (with Month/Year dropdowns and a Today shortcut) showing every pooja on a given date: temple, pooja, devotee, agent, pandit, amount, and status. Bookings synced from the customer care portal (see below) are marked **Real booking**.
 - **Agents** — contact details, bank account info (editable, persists until changed), and payouts. Clicking **Pay** opens a dialog to enter any amount (full due, partial, or an advance) — payments are simulated and can realistically **fail** (no bank details on file, or a random simulated gateway decline), which shows up immediately as a warning on the agent's card and in their **Pay history**, without being counted as paid.
