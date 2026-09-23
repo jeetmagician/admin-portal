@@ -642,7 +642,8 @@ function crmDerivedPoojas(){
         devotee:b.devotee.name, devoteeMobile:b.devotee.phone,
         agentName:ag?ag.name:null, agentMobile:ag?ag.phone:null, agentId:ag?ag.id:null,
         panditName:pd?pd.name:null, panditMobile:pd?pd.phone:null, panditId:pd?pd.id:null,
-        amount:b.amount, fullyPaid:!!b.balancePaid
+        amount:b.amount, fullyPaid:!!b.balancePaid,
+        advanceAmt:b.advanceAmt, balanceAmt:b.balanceAmt
       };
     });
 }
@@ -805,6 +806,23 @@ function personCell(p){
   return (p&&p.name)?esc(p.name)+(p.id?'<div class="sub mono" style="font-size:11px;margin-top:2px">'+esc(p.id)+'</div>':'')+contactIcons(p.name,p.mobile):'—';
 }
 function livePill(){ return ' <span class="pill p-flow" title="Real booking, read live from the customer care portal" style="margin-left:4px">Live</span>'; }
+// Payment breakdown for the Devotees directory. CRM bookings pay in two real
+// stages (a ~20% advance, then the balance) with live advancePaid/balancePaid
+// flags; Total only reflects the pooja rate once both stages have cleared.
+// Seeded/demo poojas carry no staged-payment data of their own, so they're
+// shown as already fully paid with a notional 20/80 advance/balance split,
+// just for a consistent breakdown to display.
+function poojaPayments(pj){
+  const rate=pj.amount;
+  if(pj.source==='crm'){
+    const advance=pj.advanceAmt||0, balance=pj.balanceAmt||0;
+    const due = pj.fullyPaid ? 0 : balance;
+    const full = pj.fullyPaid ? balance : 0;
+    return {rate, advance, due, full, total: pj.fullyPaid ? rate : 0};
+  }
+  const advance=Math.round(rate*0.2), full=rate-advance;
+  return {rate, advance, due:0, full, total:rate};
+}
 
 /* ---------------- directory search + A-Z filtering (Devotees, Agents, Pandits) ---------------- */
 const ALPHA_LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
@@ -1044,11 +1062,19 @@ function devoteesScreen(){
    dirSearchBar('devotees','Search by devotee, agent or pandit — name, phone or ID')+
    '<div class="sub" style="margin:12px 0 8px">'+rows.length+' result'+(rows.length===1?'':'s')+'</div>'+
    (rows.length?'<div class="card"><div class="scroll-x"><table class="t"><thead><tr>'+
-     '<th>Devotee</th><th>Pooja</th><th>Agent</th><th>Pandit</th><th>Date &amp; time</th></tr></thead><tbody>'+
+     '<th>Devotee</th><th>Pooja</th><th>Agent</th><th>Pandit</th>'+
+     '<th>Pooja rate</th><th>Advance payment</th><th>Due</th><th>Full payment</th><th>Total</th>'+
+     '<th>Date &amp; time</th></tr></thead><tbody>'+
      rows.map(pj=>{
+       const pay=poojaPayments(pj);
        return '<tr><td>'+esc(pj.devotee)+contactIcons(pj.devotee,pj.devoteeMobile)+'</td>'+
         '<td>'+esc(pj.puja)+'<div class="sub mono" style="font-size:11px;margin-top:2px">'+esc(pj.id)+'</div>'+(pj.source==='crm'?livePill():'')+'</td>'+
         '<td>'+personCell(poojaAgent(pj))+'</td><td>'+personCell(poojaPandit(pj))+'</td>'+
+        '<td class="mono">'+INR(pay.rate)+'</td>'+
+        '<td class="mono">'+INR(pay.advance)+'</td>'+
+        '<td class="mono">'+(pay.due>0?'<span class="pill p-warn">'+INR(pay.due)+'</span>':INR(0))+'</td>'+
+        '<td class="mono">'+(pay.full>0?INR(pay.full):'—')+'</td>'+
+        '<td class="mono">'+(pay.total>0?'<span class="pill p-ok">'+INR(pay.total)+'</span>':'—')+'</td>'+
         '<td class="mono" style="white-space:nowrap">'+esc(fmtDate(pj.date))+'<div class="sub" style="margin-top:2px">'+esc(pj.timeLabel||'—')+'</div></td></tr>';
      }).join('')+
     '</tbody></table></div></div>':'<div class="card"><div class="empty">No matching devotees.</div></div>');
