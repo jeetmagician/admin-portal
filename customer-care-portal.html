@@ -4314,7 +4314,23 @@ function openAsAdminIfRequested(){
   }catch(e){}
 }
 
-seed(); restoreDemo(); syncSharedCareLogin(); openAsAdminIfRequested(); tick(); render();
+// Blackout (temple closure) locks managed from the Admin Portal, shared via
+// nm_shared_blackouts: {locked:{id:bool}, removed:[id], added:[record]}.
+// A locked closure (blocks:true) blocks new bookings on those dates; unlocked
+// leaves it as a warning only. Re-applied on every load on top of whatever
+// was saved, so the admin's choices always win; admin-added ones carry the
+// 'AB-' id prefix and are rebuilt each time so removals disappear.
+function applyAdminBlackouts(){
+  try{
+    const cfg=JSON.parse(localStorage.getItem('nm_shared_blackouts')||'null')||{};
+    const locked=cfg.locked||{}, removed=cfg.removed||[], added=cfg.added||[];
+    BLACKOUTS=BLACKOUTS.filter(b=>!String(b.id).startsWith('AB-')&&!removed.includes(b.id));
+    BLACKOUTS.forEach(b=>{ if(Object.prototype.hasOwnProperty.call(locked,b.id)) b.blocks=!!locked[b.id]; });
+    added.forEach(a=>{ if(a&&a.id&&a.templeId&&a.from) BLACKOUTS.push({id:a.id,templeId:a.templeId,from:a.from,to:a.to||a.from,reason:a.reason||'',blocks:!!a.blocks}); });
+  }catch(e){}
+}
+
+seed(); restoreDemo(); syncSharedCareLogin(); applyAdminBlackouts(); openAsAdminIfRequested(); tick(); render();
 
 </script>
 </body>

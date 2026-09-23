@@ -412,6 +412,7 @@ const NAV = [
   ['agents','Agents'],
   ['pandits','Pandits'],
   ['temples','Temples'],
+  ['blackouts','Blackout calendar'],
   ['ads','Advertisements'],
   ['care','Customer care portal'],
   ['devotees','Devotees']
@@ -794,6 +795,60 @@ function careLoginEditForm(){
    '</div>';
 }
 
+/* ---------------- BLACKOUT CALENDAR (temple closures — lock / unlock) ----------------
+   The closure dates themselves live in the customer care portal, which is what
+   enforces them: a locked one blocks new bookings on those dates, an unlocked
+   one is only a warning. This screen reads the portal's list and stores the
+   admin's choices in nm_shared_blackouts, which the portal re-applies each
+   time it loads. */
+const BLACKOUT_KEY='nm_shared_blackouts';
+function loadBlackoutCfg(){
+  try{ const v=JSON.parse(localStorage.getItem(BLACKOUT_KEY)||'null'); if(v&&typeof v==='object') return {locked:v.locked||{},removed:v.removed||[],added:v.added||[]}; }catch(e){}
+  return {locked:{},removed:[],added:[]};
+}
+let BLACKOUT_CFG=loadBlackoutCfg();
+function saveBlackoutCfg(){ try{ localStorage.setItem(BLACKOUT_KEY, JSON.stringify(BLACKOUT_CFG)); }catch(e){} }
+function crmTemples(){ const c=loadCrmSnapshot(); return (c&&Array.isArray(c.TEMPLES))?c.TEMPLES:[]; }
+function effectiveBlackouts(){
+  const c=loadCrmSnapshot();
+  const base=((c&&Array.isArray(c.BLACKOUTS))?c.BLACKOUTS:[])
+    .filter(b=>!String(b.id).startsWith('AB-') && !BLACKOUT_CFG.removed.includes(b.id))
+    .map(b=>Object.assign({},b,{own:false, blocks: Object.prototype.hasOwnProperty.call(BLACKOUT_CFG.locked,b.id) ? !!BLACKOUT_CFG.locked[b.id] : !!b.blocks}));
+  return base.concat(BLACKOUT_CFG.added.map(a=>Object.assign({},a,{own:true})))
+    .sort((a,b)=> a.from<b.from?-1:(a.from>b.from?1:0));
+}
+function blackoutAffected(b){
+  const c=loadCrmSnapshot();
+  return ((c&&c.DB&&c.DB.bookings)||[]).filter(x=>{
+    if(x.templeId!==b.templeId || x.status==='CANCELLED' || x.pujaAt==null) return false;
+    const d=new Date(x.pujaAt).toISOString().slice(0,10);
+    return d>=b.from && d<=b.to;
+  }).length;
+}
+function blackoutsScreen(){
+  const list=effectiveBlackouts(), temples=crmTemples();
+  const tname=id=>{ const t=temples.find(x=>x.id===id); return t?t.name:id; };
+  return '<div class="eyebrow">Temples</div><h1 class="h-page">Blackout calendar</h1>'+
+   '<div class="row" style="justify-content:space-between;margin:10px 0 14px;align-items:flex-start">'+
+    '<p class="sub" style="margin:0;max-width:64ch">Temple closure dates such as Ambubachi Mela, festivals and bandhs. <b>Locked</b> closures block new bookings on those dates; <b>unlocked</b> ones only show a warning, so bookings are allowed again. A change takes effect the next time the customer care portal is opened or reloaded.</p>'+
+    '<button class="btn btn-pri btn-sm" data-act="open-modal" data-v="addBlackout"'+(temples.length?'':' disabled')+'>+ Add closure</button>'+
+   '</div>'+
+   (!temples.length?'<div class="card"><div class="empty">The customer care portal hasn\'t been opened yet, so there are no temples or closures to show. Open it once from the Customer care portal tab, then come back.</div></div>':
+    list.length?'<div class="stack">'+list.map(b=>{
+      const n=blackoutAffected(b);
+      return '<div class="card"><div class="row" style="justify-content:space-between;align-items:flex-start">'+
+       '<div style="flex:1;min-width:0"><div class="rrow-name">'+esc(tname(b.templeId))+'</div>'+
+       '<div class="rrow-meta" style="margin-top:4px"><span class="mono">'+esc(b.from)+(b.from!==b.to?' → '+esc(b.to):'')+'</span></div>'+
+       '<p class="sub" style="margin:8px 0 0">'+esc(b.reason)+'</p></div>'+
+       '<div style="text-align:right">'+(b.blocks?'<span class="pill p-stop">Locked — blocks booking</span>':'<span class="pill p-warn">Unlocked — warning only</span>')+
+        '<div class="sub" style="margin-top:6px">'+(n?n+' booking'+(n===1?'':'s')+' on these dates':'No bookings on these dates')+'</div>'+
+        '<div class="row" style="justify-content:flex-end;margin-top:10px;gap:6px">'+
+         '<button class="btn btn-sm'+(b.blocks?'':' btn-pri')+'" data-act="toggle-blackout" data-v="'+esc(b.id)+'">'+(b.blocks?'Unlock':'Lock')+'</button>'+
+         (b.own?'<button class="btn btn-sm btn-stop" data-act="delete-blackout" data-v="'+esc(b.id)+'">Remove</button>':'')+
+        '</div></div></div></div>';
+    }).join('')+'</div>':'<div class="card"><div class="empty">No closures yet.</div></div>');
+}
+
 /* ---------------- DAILY POOJA (calendar) ---------------- */
 function allDailyPoojas(){ return DB.poojas.concat(crmDerivedPoojas()); }
 function poojaScreen(){
@@ -1105,7 +1160,7 @@ function modalHost(){
   const m=S.modal;
   const titles={addAgent:'Add agent',addPandit:'Add pandit',editBank:'Edit bank details',addTemple:'Add temple',addAd:'Add advertisement',
     agentCreds:'Agent login created',panditCreds:'Pandit login created',showCreds:'Login details',payHistory:'Pay history',payAgent:'Pay agent',
-    exportBookings:'Export bookings',addStateCare:'Add customer care for a state'};
+    exportBookings:'Export bookings',addStateCare:'Add customer care for a state',addBlackout:'Add a closure'};
   return '<div class="modal" role="dialog" aria-modal="true"><div class="modal-backdrop" data-act="close-modal"></div>'+
    '<section class="modal-panel"><div class="modal-top"><strong>'+esc(titles[m.type]||'')+'</strong>'+
    '<button class="btn btn-sm" data-act="close-modal">✕ Close</button></div>'+
@@ -1154,6 +1209,13 @@ function modalBody(){
    '<div class="fld"><label class="f" for="sc-id">Login ID</label><input class="inp" id="sc-id" placeholder="e.g. assam.care" autocomplete="off"></div>'+
    '<div class="fld"><label class="f" for="sc-pw">Password</label><input class="inp" id="sc-pw" placeholder="Set a password" autocomplete="off"></div>'+
    '<button class="btn btn-pri btn-wide" data-act="submit-add-state-care">Create customer care</button>';
+  if(m.type==='addBlackout') return '<div class="fld"><label class="f" for="bo-temple">Temple</label><select class="inp" id="bo-temple">'+
+     crmTemples().map(t=>'<option value="'+esc(t.id)+'">'+esc(t.name)+'</option>').join('')+'</select></div>'+
+   '<div class="grid g2"><div class="fld"><label class="f" for="bo-from">From date</label><input class="inp" type="date" id="bo-from"></div>'+
+   '<div class="fld"><label class="f" for="bo-to">To date <span class="muted">(optional)</span></label><input class="inp" type="date" id="bo-to"></div></div>'+
+   '<div class="fld"><label class="f" for="bo-reason">Reason</label><input class="inp" id="bo-reason" placeholder="e.g. Temple closed for festival"></div>'+
+   '<p class="sub" style="margin:0 0 14px;font-size:12px">New closures start locked, so new bookings on those dates are blocked. You can unlock it any time.</p>'+
+   '<button class="btn btn-pri btn-wide" data-act="submit-add-blackout">Add closure</button>';
   if(m.type==='exportBookings'){
     const from=S.devoteesFrom, to=S.devoteesTo;
     return '<p class="sub" style="margin:0 0 12px">Exports whatever the Devotees filters currently show (search, type, payment status). Pick a date range here to widen or narrow just the export — leave blank to export every booking in the last year.</p>'+
@@ -1263,6 +1325,7 @@ const SCREENS = {
   agents: agentsScreen,
   pandits: panditsScreen,
   temples: templesScreen,
+  blackouts: blackoutsScreen,
   ads: adsScreen,
   care: careScreen,
   devotees: devoteesScreen
@@ -1455,6 +1518,30 @@ document.addEventListener('click', e=>{
   if(act==='delete-state-care'){
     if(!confirm('Remove this customer care login? They will no longer be able to sign in.')) return;
     STATE_CARE=STATE_CARE.filter(x=>x.id!==v); saveStateCare();
+    return render();
+  }
+  if(act==='toggle-blackout'){
+    const b=effectiveBlackouts().find(x=>x.id===v); if(!b) return;
+    if(b.own){ const a=BLACKOUT_CFG.added.find(x=>x.id===v); a.blocks=!a.blocks; }
+    else BLACKOUT_CFG.locked[v]=!b.blocks;
+    saveBlackoutCfg();
+    toast(b.blocks ? 'Unlocked — bookings on those dates are allowed again.' : 'Locked — new bookings on those dates are blocked.');
+    return render();
+  }
+  if(act==='delete-blackout'){
+    if(!confirm('Remove this closure?')) return;
+    BLACKOUT_CFG.added=BLACKOUT_CFG.added.filter(x=>x.id!==v); saveBlackoutCfg();
+    return render();
+  }
+  if(act==='submit-add-blackout'){
+    const templeId=(document.getElementById('bo-temple')||{}).value||'';
+    const from=(document.getElementById('bo-from')||{}).value||'';
+    const to=(document.getElementById('bo-to')||{}).value||from;
+    const reason=((document.getElementById('bo-reason')||{}).value||'').trim();
+    if(!templeId||!from||!reason) return toast('Choose a temple, a date and enter a reason.');
+    if(to<from) return toast('The end date can\'t be before the start date.','stop');
+    BLACKOUT_CFG.added.push({id:genId('AB', BLACKOUT_CFG.added.map(x=>x.id)), templeId, from, to, reason, blocks:true});
+    saveBlackoutCfg(); S.modal=null; toast('Closure added and locked.');
     return render();
   }
   if(act==='care-login-save'){
