@@ -48,6 +48,14 @@ Both apps share a visual identity (fonts, color tokens, the same wallpaper photo
 - **No real authentication.** Login credentials are hardcoded/generated for the prototype and are not meant to be secure.
 - **The CRM masks devotee details for everyone, admin included — this app is where they're unmasked.** The CRM masks a devotee's name/phone *at render time* inside its own screens; the underlying stored data is always the real value. The Admin Portal reads that raw stored data directly, so the Devotees tab shows real names and numbers by design (the CRM's own docs assign unmasked devotee details to the admin portal, not to the CRM).
 
+### Dark / light mode — how it works
+
+- **The switch** is the `themeToggle()` button (top bar, and the corner of the sign-in page). Clicking it calls `applyTheme()`, which sets `data-theme="dark"` or `"light"` on `<html>`, saves the choice to `localStorage['nm_admin_theme']`, and updates every switch in place (no re-render, so a half-typed sign-in isn't lost).
+- **First load:** a tiny inline script in `<head>` sets `data-theme` *before* the page paints — the saved choice if there is one, otherwise the computer's `prefers-color-scheme`. That's what stops a flash of the wrong mode.
+- **Colours are CSS variables.** The card/text tokens (`--surface`, `--ink`, …) already had dark and light sets. Everything that used to be hard-coded for the dark wallpaper look — the wallpaper overlay (`--ov-*`), top bar and nav (`--chrome-*`), and page headings/labels sitting directly on the wallpaper (`--pg-*`) — now has a dark default in `:root` and a light override in `:root[data-theme="light"]`. To add a new element that sits on the wallpaper, use those variables rather than a fixed colour, or it will be unreadable in one mode.
+- `color-scheme` is set per theme so native date pickers and dropdowns match.
+- This only affects the Admin Portal; `customer-care-portal.html` has its own styling and is unchanged.
+
 ### Keeping the CRM copy in sync
 
 `customer-care-portal.html` here is a **manually-synced copy** of the separate CRM repo, not a live pull — the two repos have independent git histories. This matters because the CRM bridge (`CRM_STORAGE_KEY` in `index.html`, currently `'namonamaha-care-demo-v15'`) has to match whatever `STORAGE_KEY` the CRM's own `index.html` is actually using. If the CRM repo bumps its storage key (it does this on every change to its data shape) and this copy isn't updated to match, the bridge silently reads a key that no longer exists — Daily pooja/Devotees just quietly stop showing any real bookings, with no error.

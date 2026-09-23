@@ -28,6 +28,12 @@ The Admin Portal sits *above* the customer care portal. The admin signs in once 
 - The eye icon shows or hides the password without clearing what you typed.
 - The sign-in is remembered across browser tabs, so opening another Admin Portal tab, or coming back from the customer care portal, doesn't ask again. **Log out** (top right) ends it.
 - **Dark mode switch:** the **Dark mode ON / OFF** switch in the top bar (and in the corner of the sign-in page) changes the whole screen between dark and light. Light mode gives a light top bar, dark headings and a pale wallpaper; dark mode is the original look. Your choice is remembered in this browser; the first time, it follows your computer's light/dark setting.
+- **How the dark/light switch behaves in detail:**
+  - Click it once to flip; **ON** means dark mode is on, **OFF** means light.
+  - It works on the sign-in page too. Anything you'd typed there stays.
+  - The choice is saved in this browser (`nm_admin_theme`), so it survives reloads, closing the tab and signing out.
+  - With no saved choice, it starts to match your computer's light/dark setting.
+  - It changes the Admin Portal only. The customer care portal keeps its own look.
 - The whole app is laid out for desktop: content fills the window, with larger text on big screens, over the Namonamaha wallpaper. The top bar shows the ॐ mark and NamoNamaha logo.
 
 ---
