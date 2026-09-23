@@ -539,7 +539,7 @@ function loadCareLogin(){
     const raw = localStorage.getItem(CARE_LOGIN_KEY);
     if(raw) return JSON.parse(raw);
   }catch(e){}
-  const seeded = {id:'priya.care', password:'Namo@123'};
+  const seeded = {id:'priya.care', password:'Kamakhya@101'};
   try{ localStorage.setItem(CARE_LOGIN_KEY, JSON.stringify(seeded)); }catch(e){}
   return seeded;
 }
@@ -646,7 +646,7 @@ function agentEarned(agentId){
    pandits — and these bookings are shown only in Daily pooja and
    Devotees; they intentionally don't feed Overview income or agent
    payouts, which stay scoped to this portal's own seeded/added data. */
-const CRM_STORAGE_KEY = 'namonamaha-care-demo-v8'; // bump this if the CRM's own STORAGE_KEY changes again
+const CRM_STORAGE_KEY = 'namonamaha-care-demo-v15'; // bump this if the CRM's own STORAGE_KEY changes again
 function loadCrmSnapshot(){
   try{ return JSON.parse(localStorage.getItem(CRM_STORAGE_KEY)||'null'); }catch(e){ return null; }
 }
@@ -726,13 +726,13 @@ function careScreen(){
   return '<div class="eyebrow">Access</div><h1 class="h-page">Customer care portal</h1>'+
    '<p class="sub" style="margin:6px 0 16px;max-width:60ch">The CRM used by customer care, onsite agents and pandits to run bookings day to day. It opens in a new tab.</p>'+
    '<div class="card">'+
-    '<div class="h-sec">Open as Admin — full, unmasked access</div>'+
-    '<p class="sub" style="margin:6px 0 14px">Since the Admin Portal supervises customer care, this goes straight into the CRM\'s own Admin panel — every booking, every devotee\'s real name and phone number, no masking — instead of the restricted view a care agent signs into.</p>'+
-    '<a class="btn btn-pri" href="customer-care-portal.html?admin=1" target="_blank" rel="noopener">Open customer care portal as Admin →</a>'+
+    '<div class="h-sec">Enter as Admin — no login needed</div>'+
+    '<p class="sub" style="margin:6px 0 14px">You\'re already signed in here, so this takes you straight into the customer care portal without typing a login ID or password. The portal itself masks devotee names and phone numbers for everyone, admin included — for full, unmasked details use the Devotees tab in this Admin Portal.</p>'+
+    '<a class="btn btn-pri" href="customer-care-portal.html?admin=1" target="_blank" rel="noopener">Enter customer care portal →</a>'+
    '</div>'+
    '<div class="card">'+
     '<div class="h-sec">Customer care login</div>'+
-    '<p class="sub" style="margin:6px 0 14px">The login ID and password the customer care team uses to sign in to the portal above. Changing it here changes what works over there.</p>'+
+    '<p class="sub" style="margin:6px 0 14px">The login ID and password for the first customer care account (Priya Sharma, Kamakhya temple) in the portal above. Changing it here changes what works over there. The other temples\' accounts aren\'t managed from here yet.</p>'+
     (S.careLoginEdit ? careLoginEditForm() : careLoginView())+
    '</div>';
 }
