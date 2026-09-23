@@ -193,6 +193,7 @@ table.t tr:last-child td{border-bottom:none}
 .icon-btn{width:24px;height:24px;display:grid;place-items:center;border-radius:6px;border:1px solid var(--line-2);background:var(--surface-2);color:var(--ink-2);flex:none;padding:0;appearance:none;cursor:pointer;font:inherit}
 .icon-btn:hover{background:var(--surface-3);color:var(--ink)}
 .icon-btn.icon-wa:hover{color:#25D366;border-color:#25D366}
+.ad-platform-icon{width:30px;height:30px;border-radius:8px;flex:none;display:block;box-shadow:0 1px 3px rgba(0,0,0,.18)}
 
 /* ---------- directory search + A-Z strip ---------- */
 .dir-search{max-width:360px;width:100%}
@@ -390,9 +391,9 @@ function attemptPayout(a){
 
 /* ---------------- advertisement platforms ---------------- */
 const AD_PLATFORMS = {
-  youtube:{label:'YouTube',pill:'p-stop'},
-  instagram:{label:'Instagram',pill:'p-flow'},
-  facebook:{label:'Facebook',pill:'p-info'}
+  youtube:{label:'YouTube',pill:'p-stop',icon:'icon-youtube.png'},
+  instagram:{label:'Instagram',pill:'p-flow',icon:'icon-instagram.png'},
+  facebook:{label:'Facebook',pill:'p-info',icon:'icon-facebook.png'}
 };
 
 /* ---------------- nav ---------------- */
@@ -1010,7 +1011,10 @@ function adsScreen(){
    (DB.ads.length?'<div class="grid g2">'+DB.ads.map(ad=>{
      const p=AD_PLATFORMS[ad.platform]||{label:ad.platform,pill:'p-mute'};
      return '<div class="card"><div class="row" style="justify-content:space-between;align-items:flex-start">'+
-      '<span class="pill '+p.pill+'">'+esc(p.label)+'</span>'+
+      '<div class="row" style="gap:10px;align-items:center">'+
+       (p.icon?'<img src="'+esc(p.icon)+'" alt="'+esc(p.label)+'" class="ad-platform-icon">':'')+
+       '<span class="pill '+p.pill+'">'+esc(p.label)+'</span>'+
+      '</div>'+
       '<button class="btn btn-sm btn-stop" data-act="delete-ad" data-v="'+esc(ad.id)+'">Delete</button></div>'+
       '<div class="h-sec" style="margin-top:10px">'+esc(ad.title)+'</div>'+
       '<div class="sub" style="margin-top:4px;word-break:break-all"><a href="'+esc(ad.url)+'" target="_blank" rel="noopener">'+esc(ad.url)+'</a></div>'+
